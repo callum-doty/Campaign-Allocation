@@ -11,6 +11,7 @@ Where should a party committee spend its money across House races? This repo ans
 
 - **The forecast is calibrated out of sample.** Each year from 2016 to 2024 was predicted only from earlier elections, and predicted and actual win rates match by tier.
 - **DCCC's own spending was within a few tenths of a seat** of the best allocation of the same budget at the default assumption, and under two seats even under generous ones. The main difference is money protecting its own incumbents in seats the polls called safe, a caution that was justified in 2020.
+- **Turned around, the answer needs less of the spending assumption.** Reallocating would gain a full seat only if party money were 5 to 10 times as strong as assumed (DCCC's first $1M in a race moving it 1-2.6 points, not 0.25). DCCC's own split is optimal only if a dollar in races the forecast already gave Democrats at 80%+ works 1.5 to 3 times as hard as one in close races, a ratio that doesn't depend on how strong money is.
 - **Neither strategy nor TV prices explain that.** In a two-player game against NRCC, the equilibrium puts almost nothing in safe seats. DCCC already spends about half as much per race in the costliest TV markets. No spender shifts toward mail where TV is most expensive.
 - **2026:** the new maps cost Democrats about four Harris-won districts, but a 3-point move in the national environment swings about a dozen expected seats. With polling error shared across races, the model gives Democrats a 98% chance of a majority, which is likely optimistic.
 
@@ -21,7 +22,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-`run.py` downloads what's missing into `data/raw/` (about 170 MB, not committed), builds every cycle, runs the backtests and 2026 forecast, and rewrites `REPORT.md` and `figures/`. It takes about a minute and a half once the data is downloaded, most of it solving the two-player game. `python run.py --refresh` re-downloads the 2026 FEC files, which are still being filed.
+`run.py` downloads what's missing into `data/raw/` (about 170 MB, not committed), builds every cycle, runs the backtests and 2026 forecast, and rewrites `REPORT.md` and `figures/`. It takes about two and a half minutes once the data is downloaded, most of it solving the two-player game and finding the break-even spending effect. `python run.py --refresh` re-downloads the 2026 FEC files, which are still being filed.
 
 **One manual step:** MIT's Dataverse asks for a short guestbook form before the House results download. Get `1976-2024-house.tab` from [doi.org/10.7910/DVN/IG0UN2](https://doi.org/10.7910/DVN/IG0UN2) and save it as `data/raw/house_1976_2024.csv`. `run.py` stops with these instructions if the file is missing.
 
@@ -47,6 +48,9 @@ campaign/
   predict_margin.py         expected margin under a fitted model
   spending_effect.py        job 2: assumed effect of party money
   allocate.py               greedy budget allocation
+  reallocation_gain.py      seats gained by re-spending the observed budget
+  break_even.py             how strong money must be for reallocating to gain a seat
+  implied_belief.py         what DCCC's own allocation implies, band by band
   seat_distribution.py      seat total with national error shared across races
   seats_needed.py           seats needed among modeled races for a majority
   backtest.py               score a past cycle, forward in time
@@ -71,5 +75,5 @@ tests/test_model.py
 
 ## Caveats
 
-- **The effect of party money is assumed, not measured.** Public data can't separate it from the reasons money goes where it goes. Treat the allocation results as "under this assumption", and replace it with measured effects (for example randomized holdouts on mail or ad programs) when you have them.
+- **The effect of party money is assumed, not measured.** Public data can't separate it from the reasons money goes where it goes. Treat the allocation results as "under this assumption", and replace it with measured effects (for example randomized holdouts on mail or ad programs) when you have them. The break-even effect in the report is the number to compare a measured effect against. Both it and the implied-belief ratios still assume the same curve in every race.
 - **No 2026 allocation analysis.** After *NRSC v. FEC* (June 2026), DCCC spends through coordinated expenditures, which aren't in the bulk independent-expenditure file.

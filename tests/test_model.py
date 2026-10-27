@@ -13,8 +13,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from campaign import load_presidential as lp  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
+from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
+from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
+from campaign.reallocation_gain import reallocation_gain  # noqa: E402
 from campaign.seat_distribution import seat_distribution  # noqa: E402
 from campaign.solve_game import solve_game  # noqa: E402
 from campaign.spending_effect import spending_effect  # noqa: E402
@@ -109,6 +112,31 @@ def test_greedy_matches_brute_force():
     best = max(seats(np.array(a)) for a in itertools.product(np.arange(0, cap + step, step), repeat=3)
                if sum(a) <= budget)
     assert seats(x) == pytest.approx(best, abs=1e-9)
+
+
+def test_break_even_scale_is_where_the_gain_reaches_the_target():
+    # money parked in two safe seats; moving it to the close races pays only if money is strong
+    mu, observed = np.array([-10.0, -3.0, 0.0, 3.0, 8.0, 12.0, 15.0]), np.array([0, 0, 0, 0, 0, 2e6, 2e6])
+    scale = break_even_scale(mu, 6.0, observed, cap=4e6, half_saturation=5.5e6, target=0.5)
+
+    def gain(s):
+        return reallocation_gain(mu, 6.0, observed, 4e6, scale_pts=s, half_saturation=5.5e6)[0]
+
+    assert gain(scale) == pytest.approx(0.5, abs=0.01)
+    assert gain(0.9 * scale) < 0.5
+
+
+def test_implied_multiplier_is_one_at_an_optimum_and_free_of_scale():
+    # the model's own optimum, read backwards, should need no extra belief in any band
+    mu0, sigma = np.array([-14.0, -9.0, -4.0, 0.0, 4.0, 9.0, 14.0]), 6.0
+    x = allocate(mu0, sigma, np.zeros(7), budget=30e6, cap=30e6, step=50_000)
+    mu = mu0 + spending_effect(x)            # the forecast at that allocation
+    belief = implied_belief(mu, sigma, x)
+    assert (belief.dollars > 0).all()        # every band is funded
+    assert np.allclose(belief.multiplier, 1.0, atol=0.01)
+    lopsided = np.array([1e6, 0, 0, 2e6, 0, 6e6, 4e6])
+    assert np.allclose(implied_belief(mu, sigma, lopsided, scale_pts=0.5).multiplier,
+                       implied_belief(mu, sigma, lopsided, scale_pts=4.5).multiplier)
 
 
 def test_presidential_sheet_parsing(tmp_path, monkeypatch):
