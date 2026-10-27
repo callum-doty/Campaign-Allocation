@@ -1,8 +1,9 @@
 """
 Score one completed cycle strictly forward in time: fit the baseline on
-every EARLIER cycle, forecast this one, then ask how DCCC's own spending
-compares with the best allocation of the same budget under the spending
-assumption, across a grid of assumptions.
+every EARLIER cycle, forecast this one (each race, and the seat total with
+its shared national error), then ask how DCCC's own spending compares with
+the best allocation of the same budget under the spending assumption,
+across a grid of assumptions.
 """
 
 import numpy as np
@@ -12,6 +13,8 @@ from scipy.stats import norm
 from .allocate import allocate
 from .fit_baseline import fit_baseline
 from .predict_margin import predict_margin
+from .seat_distribution import seat_distribution
+from .seats_needed import seats_needed
 from .spending_effect import HALF_SATURATION, SCALE_PTS, spending_effect
 
 SCALES = (0.5, 1.5, 4.5)
@@ -37,6 +40,8 @@ def backtest(cycle, races):
             shift = spending_effect(x, scale, half) - spending_effect(test.dccc, scale, half)
             grid[(scale, half)] = (float(norm.cdf((test.mu + shift) / model["sigma"]).sum() - test.p.sum()), x)
     gain, test["model_dccc"] = grid[(SCALE_PTS, HALF_SATURATION)]
+    seats = seat_distribution(test.mu, model, seats_needed(cycle, test.district_id))
+    seats["actual"] = int((test.margin > 0).sum())
     return {"cycle": cycle, "model": model, "races": test, "calibration": calibration,
             "brier": float(np.mean((known.p - known.won) ** 2)), "budget": budget, "gain": gain,
-            "grid": {k: v[0] for k, v in grid.items()}}
+            "grid": {k: v[0] for k, v in grid.items()}, "seats": seats}

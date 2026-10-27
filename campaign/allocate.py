@@ -8,10 +8,19 @@ spent, so only DEVIATIONS from the observed allocation move a race; at the
 observed allocation every race is exactly at its baseline forecast.
 
 Greedy: each step funds the race whose next chunk buys the most expected
-seats per dollar. Several chunk sizes are tried each step, so a race that
-only pays off after a larger buy (the convex part of Phi below 50%) isn't
-starved by one-small-step lookahead. On the real backtests this lands
-within 0.01 seats of a full numerical optimizer.
+seats per dollar. Each race's win probability is concave in its spending
+except where z = (mu + shift) / sigma < -sigma / scale, i.e. races more
+than ~40 points out at the default scale (the second derivative is
+proportional to -(scale * z / sigma) - 1). So the objective is a sum of
+concave functions under a budget constraint, and small greedy steps are
+discrete KKT water-filling: they reach the global optimum, within 0.01
+seats of a numerical solver on the real backtests. The larger chunk sizes
+only matter in that convex tail under steep spending assumptions.
+
+Objectives that weigh outcomes across national environments (a majority
+probability, tail risk) need the national error (seat_distribution.py);
+expected seats don't, because averaging Phi((mu + eta) / sigma_district)
+over the national swing eta gives back Phi(mu / sigma).
 """
 
 import numpy as np

@@ -34,15 +34,16 @@ COLUMNS = {0: "cand_id", 1: "name", 2: "ici", 4: "party_code", 7: "disbursements
 PARTY = {"DEM": "D", "DFL": "D", "REP": "R"}
 SUFFIXES = {"JR", "SR", "II", "III", "IV", "MR", "MRS", "MS", "DR", "HON", "THE", "MD"}
 WORD = re.compile(r"[A-Z]{2,}")
+SENATE_RUN_DOLLARS = 100_000
 
 
 def load_candidates(cycle, results):
     """district_id, party, disbursements, ici ('I' incumbent, 'C'
     challenger, 'O' open seat) for each matched nominee. `results` is
     load_results(cycle); pass an empty frame for an unfinished cycle."""
-    fec = pd.read_csv(RAW / f"weball{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str,
-                      usecols=list(COLUMNS)).rename(columns=COLUMNS)
-    fec = fec[fec.cand_id.str.startswith("H")].copy()
+    everyone = pd.read_csv(RAW / f"weball{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str,
+                           usecols=list(COLUMNS)).rename(columns=COLUMNS)
+    fec = everyone[everyone.cand_id.str.startswith("H")].copy()
     fec["fec_party"] = fec.party_code.map(PARTY)
     fec["district_id"] = fec.state + "-" + fec.district.str.zfill(2)
     fec["disbursements"] = pd.to_numeric(fec.disbursements, errors="coerce").fillna(0)
@@ -53,15 +54,24 @@ def load_candidates(cycle, results):
 
     if results.empty:
         # No ballot yet. An "incumbent" flag only counts for a current House
-        # member from that state (The Downballot's sheet lists them); this
-        # drops stale committees such as Sinema's in AZ-09 and Ted Budd's
-        # and Wiley Nickel's in NC-13, and keeps members running on a new
-        # district number (Bera in CA-03).
+        # member from that state (The Downballot's sheet lists them) who is
+        # not running for Senate this cycle. That drops stale committees
+        # (Sinema's in AZ-09; Ted Budd's and Wiley Nickel's in NC-13) and
+        # members leaving for the Senate (Hinson, IA-02; Barr, KY-06), and
+        # keeps members running on a new district number (Bera in CA-03). A
+        # Senate run counts if its FEC ID was issued this cycle ("S6" for
+        # 2026) and it has spent $100K+, which skips old or abandoned bids.
         members = {(row[0][:2], WORD.findall(row[1].upper())[-1])
                    for row in csv.reader((SHEETS / f"lines_{cycle}.csv").open(encoding="utf-8"))
                    if len(row) > 1 and DISTRICT.match(row[0].strip()) and WORD.findall(row[1].upper())}
-        current = pd.Series([ici != "I" or any((state, w) in members for w in words)
-                             for ici, state, words in zip(fec.ici, fec.state, fec.words)], index=fec.index)
+        senate = everyone[everyone.cand_id.str.startswith(f"S{str(cycle)[-1]}")
+                          & (pd.to_numeric(everyone.disbursements, errors="coerce") >= SENATE_RUN_DOLLARS)]
+        running = {(s, WORD.findall(n.split(",")[0].upper())[-1], n.split(",")[1].strip()[:1])
+                   for s, n in zip(senate.state, senate.name) if "," in n and WORD.findall(n.split(",")[0].upper())}
+        is_member = [any((s, w) in members for w in words) for s, words in zip(fec.state, fec.words)]
+        for_senate = [any((s, w, i) in running for w in words) for s, words, i in zip(fec.state, fec.words, fec.initial)]
+        current = pd.Series([ici != "I" or (m and not r) for ici, m, r in zip(fec.ici, is_member, for_senate)],
+                            index=fec.index)
         top = fec[fec.fec_party.notna() & current].sort_values("disbursements", ascending=False)
         return top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"})[columns]
 

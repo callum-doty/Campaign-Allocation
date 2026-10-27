@@ -10,8 +10,8 @@ Where should a party committee spend its money across House races? This repo ans
 ## Headline results
 
 - **The forecast is calibrated out of sample.** Each year from 2016 to 2024 was predicted only from earlier elections, and predicted and actual win rates match by tier.
-- **DCCC's own spending was within a few tenths of a seat** of the best allocation of the same budget at the default assumption, and under two seats even under generous ones.
-- **2026:** the new maps cost Democrats about four Harris-won districts, but a 3-point move in the national environment swings about a dozen expected seats.
+- **DCCC's own spending was within a few tenths of a seat** of the best allocation of the same budget at the default assumption, and under two seats even under generous ones. The main difference is money protecting its own incumbents in seats the polls called safe, a caution that was justified in 2020.
+- **2026:** the new maps cost Democrats about four Harris-won districts, but a 3-point move in the national environment swings about a dozen expected seats. With polling error shared across races, the model gives Democrats a 98% chance of a majority, which is likely optimistic.
 
 ## Run it
 
@@ -44,6 +44,8 @@ campaign/
   predict_margin.py         expected margin under a fitted model
   spending_effect.py        job 2: assumed effect of party money
   allocate.py               greedy budget allocation
+  seat_distribution.py      seat total with national error shared across races
+  seats_needed.py           seats needed among modeled races for a majority
   backtest.py               score a past cycle, forward in time
   forecast.py               forecast an upcoming cycle
   compare_maps.py           which districts were redrawn

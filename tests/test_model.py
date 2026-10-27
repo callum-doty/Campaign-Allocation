@@ -15,6 +15,7 @@ from campaign import load_presidential as lp  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
+from campaign.seat_distribution import seat_distribution  # noqa: E402
 from campaign.spending_effect import spending_effect  # noqa: E402
 
 
@@ -34,6 +35,27 @@ def test_baseline_recovers_known_coefficients():
     assert model["coef"]["pvi"] == pytest.approx(1.7, abs=0.05)
     assert model["coef"]["d_incumbent"] == pytest.approx(12, abs=1.5)
     assert model["sigma"] == pytest.approx(6, rel=0.1)
+
+
+def test_error_splits_into_national_and_district():
+    races = synthetic_races(n=2000)
+    shocks = {2014: -4.0, 2016: 0.0, 2018: 3.0, 2020: -2.0, 2022: 4.0, 2024: -1.0}
+    races["cycle"] = np.resize(list(shocks), len(races))
+    races["margin"] += races.cycle.map(shocks)
+    model = fit_baseline(races)
+    assert model["sigma_national"] == pytest.approx(np.std(list(shocks.values()), ddof=1), abs=0.5)
+    assert model["sigma_district"] == pytest.approx(6, rel=0.1)
+    assert model["sigma"] ** 2 == pytest.approx(model["sigma_national"] ** 2 + model["sigma_district"] ** 2)
+
+
+def test_seat_distribution_mean_spread_and_symmetry():
+    mu = np.linspace(-20, 20, 41)
+    independent = seat_distribution(mu, {"sigma_national": 0.0, "sigma_district": 8.0}, need=21)
+    shared = seat_distribution(mu, {"sigma_national": 4.0, "sigma_district": np.sqrt(64 - 16)}, need=21)
+    assert independent["mean"] == pytest.approx(norm.cdf(mu / 8).sum(), abs=1e-6)
+    assert shared["mean"] == pytest.approx(independent["mean"], abs=1e-6)        # same expected seats...
+    assert shared["p90"] - shared["p10"] > independent["p90"] - independent["p10"]  # ...but a wider total
+    assert independent["p_majority"] == pytest.approx(0.5, abs=0.02)
 
 
 def test_generic_ballot_is_a_one_for_one_swing():
