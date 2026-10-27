@@ -14,6 +14,9 @@ All sources are public and need no API key:
 - FEC bulk data: the all-candidate summary file (weball) and every reported
   independent expenditure, per two-year cycle.
   https://www.fec.gov/data/browse-data/?tab=bulk-data
+- Jonathan Cervas: TV markets and congressional districts (2022-2026
+  lines), embedded in his interactive page, which is saved as-is.
+  https://jonathancervas.com/maps/media-markets/
 """
 
 import io
@@ -35,6 +38,7 @@ DOWNBALLOT_SHEETS = {
     2026: ("1eZfaFI-c-PFOoKx1-zZA2MP0_dxRq_LVK0re3BOQqy0", "620838163"),
 }
 MIT_URL = "https://doi.org/10.7910/DVN/IG0UN2"
+MEDIA_MARKETS_URL = "https://jonathancervas.com/maps/media-markets/"
 FEC_BULK = "https://www.fec.gov/files/bulk-downloads"
 HEADERS = {"User-Agent": "Campaign-Allocation data fetch (github.com/callum-doty/Campaign-Allocation)"}
 
@@ -51,6 +55,7 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
         jobs.append((f"{FEC_BULK}/{cycle}/weball{yy}.zip", RAW / "fec" / f"weball{yy}.txt", f"weball{yy}.txt", cycle))
         jobs.append((f"{FEC_BULK}/{cycle}/independent_expenditure_{cycle}.csv",
                      RAW / "fec" / f"independent_expenditure_{cycle}.csv", None, cycle))
+    jobs.append((MEDIA_MARKETS_URL, RAW / "media_markets.html", None, None))
 
     for url, dest, member, cycle in jobs:
         if dest.exists() and cycle not in refresh:

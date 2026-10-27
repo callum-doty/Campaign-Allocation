@@ -16,6 +16,7 @@ from campaign.allocate import allocate  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
 from campaign.seat_distribution import seat_distribution  # noqa: E402
+from campaign.solve_game import solve_game  # noqa: E402
 from campaign.spending_effect import spending_effect  # noqa: E402
 
 
@@ -80,6 +81,22 @@ def test_allocation_respects_budget_and_cap_and_favors_close_races():
     x = allocate(np.array([-20.0, 0.0, 20.0]), 6.0, np.zeros(3), budget=3e6, cap=2e6)
     assert x.sum() <= 3e6 and x.max() <= 2e6
     assert x[1] == 2e6
+
+
+def test_costlier_race_gets_less_money():
+    # two identical toss-ups; the second's dollars buy half as much (higher saturation point)
+    x = allocate(np.zeros(2), 6.0, np.zeros(2), budget=4e6, cap=4e6,
+                 half_saturation=np.array([5.5e6, 11e6]))
+    assert x[0] > x[1]
+
+
+def test_symmetric_game_has_no_gain_left():
+    # races mirrored around a toss-up, equal budgets: by symmetry the equilibrium
+    # leaves expected seats at exactly half, and neither side can gain by deviating
+    races = pd.DataFrame({"mu": [-4.0, 0.0, 4.0], "dccc": [1e6] * 3, "nrcc": [1e6] * 3})
+    game = solve_game(races, sigma=6.0, rounds=20, step=250_000)
+    assert game["seats_equilibrium"] == pytest.approx(1.5, abs=0.02)
+    assert game["exploit_equilibrium"] < 0.01
 
 
 def test_greedy_matches_brute_force():

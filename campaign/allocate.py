@@ -33,7 +33,8 @@ CHUNKS = (1, 2, 5, 10, 20, 50)
 
 def allocate(mu, sigma, observed, budget, cap, step=100_000, **effect):
     """Dollars per race (at most `cap` each, in multiples of `step`).
-    `effect` is passed to spending_effect (scale_pts, half_saturation)."""
+    `effect` is passed to spending_effect (scale_pts, half_saturation), and
+    either may be one value per race (e.g. media-market cost)."""
     mu, observed = np.asarray(mu, float), np.asarray(observed, float)
     base = spending_effect(observed, **effect)
     x, remaining = np.zeros_like(mu), float(budget)
@@ -55,5 +56,5 @@ def allocate(mu, sigma, observed, budget, cap, step=100_000, **effect):
         i, amount = best[1], best[2]
         x[i] += amount
         remaining -= amount
-        p[i] = norm.cdf((mu[i] + spending_effect(x[i], **effect) - base[i]) / sigma)
+        p = norm.cdf((mu + spending_effect(x, **effect) - base) / sigma)
     return x
