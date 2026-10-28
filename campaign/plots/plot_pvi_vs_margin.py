@@ -8,7 +8,8 @@ STATUS = [("D incumbent", DEM, 1, 0), ("Open", NEUTRAL, 0, 1), ("R incumbent", R
 
 def plot_pvi_vs_margin(races, model, path):
     """Actual margins against PVI for one cycle's contested races, with the
-    fitted baseline for each incumbency status (at the median floor share)."""
+    fitted baseline for each incumbency status (at the median floor share,
+    for a member past their first term with no overperformance carried over)."""
     plt.rcParams.update(RC)
     fig, ax = plt.subplots(figsize=(8, 5))
     contested = races[races.margin.abs() < 80]

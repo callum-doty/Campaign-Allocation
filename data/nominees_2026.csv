@@ -1,0 +1,27 @@
+district_id,party,cand_id,name,ici,source
+AR-04,R,H4AR04048,Bruce Westerman,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Arkansas#District_4
+AR-04,D,H6AR04084,James Russell,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Arkansas#District_4
+CA-45,D,H4CA45170,Derek Tran,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_California#Districts_27–52
+CA-45,R,H6CA45191,Chuong Vo,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_California#Districts_27–52
+FL-06,R,H6FL06258,Randy Fine,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Florida#District_6
+FL-06,D,H6FL06340,Eric Yonce,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Florida#District_6
+GA-09,R,H0GA09246,Andrew Clyde,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Georgia#District_9
+GA-09,D,H6GA09284,Caitlyn Gegen,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Georgia#District_9
+IL-07,D,H6IL07354,La Shawn Ford,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Illinois#District_7
+IL-07,R,H2IL08203,Chad Koppie,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Illinois#District_7
+ME-02,D,H6ME02171,Matt Dunlap,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Maine#District_2
+ME-02,R,H6ME02148,Paul LePage,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Maine#District_2
+NC-04,D,H2NC06114,Valerie Foushee,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_North_Carolina#District_4
+NC-04,R,H2NC06106,Max Ganorkar,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_North_Carolina#District_4
+NY-17,R,H2NY17162,Mike Lawler,I,https://www.cityandstateny.com/politics/2026/06/cait-conley-wins-ny-17-primary-take-lawler/414372/
+NY-17,D,H6NY17171,Cait Conley,C,https://www.cityandstateny.com/politics/2026/06/cait-conley-wins-ny-17-primary-take-lawler/414372/
+TX-07,D,H8TX07140,Lizzie Fletcher,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Texas#District_7
+TX-07,R,H6TX07151,Alexander Hale,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Texas#District_7
+TX-08,R,H6TX08209,Jessica Steinmann,O,https://thetexan.news/elections/former-doj-official-jessica-steinmann-wins-gop-primary-for-open-congressional-seat-near-houston/article_1afd63a7-bfa8-4fc0-a33f-c237f7b55ab7.html
+TX-08,D,H0TX08145,Laura Jones,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Texas#District_8
+TX-30,D,H6TX30245,Frederick Haynes III,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Texas#District_30
+TX-30,R,H6TX30211,Everett Jackson,O,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Texas#District_30
+VA-11,D,H6VA11066,James Walkinshaw,I,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Virginia#District_11
+VA-11,R,H6VA11249,Arthur Purves,C,https://en.wikipedia.org/wiki/2026_United_States_House_of_Representatives_elections_in_Virginia#District_11
+WI-07,R,H6WI07223,Michael Alfonso,O,https://www.wxpr.org/election/2026-08-11/alfonso-wins-republican-primary-for-7th-congressional-district-seat
+WI-07,D,H6WI07207,Fred Clark,O,https://www.wxpr.org/election/2026-08-11/alfonso-wins-republican-primary-for-7th-congressional-district-seat

@@ -18,7 +18,13 @@ surname and first initial both agree. A nominee still unmatched spent too
 little to file or is missing from FEC's summary file (DeLauro in 2016), and
 counts as $0. For a cycle with no published results yet (2026), the top D
 and R spender per district stand in for the nominees, after dropping
-"incumbents" who are no longer House members (see below).
+"incumbents" who are no longer House members (see below), except where
+data/nominees_{cycle}.csv names the actual nominees, checked by hand with
+sources, along with their incumbency. That list covers districts where the
+top spender had no House report through June 30: a Senate run (Weil,
+FL-06; Cotton, AR-04), a campaign that ended (Chatzky, NY-17), or a primary
+loser. Several of the right nominees were incumbents (Clyde, GA-09;
+Foushee, NC-04; Fine, FL-06, whom FEC still lists as a challenger).
 """
 
 import csv
@@ -29,6 +35,7 @@ import pandas as pd
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "fec"
 SHEETS = Path(__file__).resolve().parents[1] / "data" / "raw" / "presidential"
+DATA = Path(__file__).resolve().parents[1] / "data"
 DISTRICT = re.compile(r"^[A-Z]{2}-(\d{1,2}|AL)$")
 COLUMNS = {0: "cand_id", 1: "name", 2: "ici", 4: "party_code", 7: "disbursements", 18: "state", 19: "district"}
 PARTY = {"DEM": "D", "DFL": "D", "REP": "R"}
@@ -38,16 +45,17 @@ SENATE_RUN_DOLLARS = 100_000
 
 
 def load_candidates(cycle, results):
-    """district_id, party, disbursements, ici ('I' incumbent, 'C'
-    challenger, 'O' open seat) for each matched nominee. `results` is
-    load_results(cycle); pass an empty frame for an unfinished cycle."""
+    """district_id, party, cand_id (FEC), disbursements, ici ('I'
+    incumbent, 'C' challenger, 'O' open seat) and FEC name for each matched
+    nominee. `results` is load_results(cycle); pass an empty frame for an
+    unfinished cycle."""
     everyone = pd.read_csv(RAW / f"weball{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str,
                            usecols=list(COLUMNS)).rename(columns=COLUMNS)
     fec = everyone[everyone.cand_id.str.startswith("H")].copy()
     fec["fec_party"] = fec.party_code.map(PARTY)
     fec["district_id"] = fec.state + "-" + fec.district.str.zfill(2)
     fec["disbursements"] = pd.to_numeric(fec.disbursements, errors="coerce").fillna(0)
-    columns = ["district_id", "party", "disbursements", "ici"]
+    columns = ["district_id", "party", "cand_id", "disbursements", "ici", "name"]
     fec_ascii = fec.name.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii").str.upper()
     fec["words"] = fec_ascii.str.findall(WORD).map(set)
     fec["initial"] = fec_ascii.str.split(",").str[1].str.strip().str[:1]
@@ -73,7 +81,15 @@ def load_candidates(cycle, results):
         current = pd.Series([ici != "I" or (m and not r) for ici, m, r in zip(fec.ici, is_member, for_senate)],
                             index=fec.index)
         top = fec[fec.fec_party.notna() & current].sort_values("disbursements", ascending=False)
-        return top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"})[columns]
+        guess = top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"})[columns]
+        listed = DATA / f"nominees_{cycle}.csv"
+        if not listed.exists():
+            return guess
+        known = pd.read_csv(listed, dtype=str)
+        actual = known[["district_id", "party", "cand_id", "ici"]].merge(
+            fec.drop_duplicates("cand_id")[["cand_id", "disbursements", "name"]], on="cand_id")
+        keep = ~guess.set_index(["district_id", "party"]).index.isin(known.set_index(["district_id", "party"]).index)
+        return pd.concat([guess[keep], actual[columns]], ignore_index=True)
 
     ballot = pd.concat([results[["district_id", col]].explode(col).rename(columns={col: "ballot_name"}).assign(party=party)
                         for party, col in (("D", "d_names"), ("R", "r_names"))]).dropna()

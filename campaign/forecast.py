@@ -25,10 +25,11 @@ def forecast(races, cycle=2026):
     fc = races[cycle].copy()
     fc["mu"] = predict_margin(fc, model)
     fc["p"] = norm.cdf(fc.mu / model["sigma"])
-    as_open = fc.assign(d_incumbent=0.0, open_seat=1.0)
+    as_open = fc.assign(d_incumbent=0.0, open_seat=1.0, fresh_d=0.0, fresh_r=0.0, over_inc=0.0,
+                        over_open=fc.over_inc + fc.over_open)
     fc["p_as_open"] = norm.cdf(predict_margin(as_open, model) / model["sigma"])
     gb = float(fc.gb.iloc[0])
     swings = np.round(np.arange(-6, 6.01, 0.5), 1)
     by_gb = {round(gb + float(s), 1): float(norm.cdf((fc.mu + s) / model["sigma"]).sum()) for s in swings}
-    seats = seat_distribution(fc.mu, model, seats_needed(cycle, fc.district_id))
+    seats = seat_distribution(fc.mu, model, seats_needed(cycle, fc.district_id), fc.district_id.str[:2])
     return {"cycle": cycle, "model": model, "races": fc, "gb": gb, "seats_by_gb": by_gb, "seats": seats}

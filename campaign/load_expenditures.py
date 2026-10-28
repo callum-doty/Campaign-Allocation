@@ -25,6 +25,9 @@ per transaction.
   is production. DCCC's plain "Media Buy" is read as TV: it labels its
   digital buys separately. A bare "MEDIA" or "Advertising" (most of it
   Congressional Leadership Fund's) could be either, and stays unspecified.
+- Date: when the ad or mail first reached voters (dissemination date),
+  or the expenditure date where that is missing (all of 2012, about a
+  fifth of rows later).
 """
 
 import re
@@ -51,7 +54,7 @@ CHANNELS = [  # (channel, pattern on the lower-cased purpose), first match wins
 
 def load_expenditures(cycle):
     """district_id, spe_id, spe_nam, bucket (dccc / nrcc / outside_d /
-    outside_r), channel, amount."""
+    outside_r), channel, amount, date."""
     ie = pd.read_csv(RAW / f"independent_expenditure_{cycle}.csv", dtype=str, low_memory=False)
     superseded = set(ie.prev_file_num.dropna()) & set(ie.file_num.dropna())
     ie = ie[(ie.can_office == "H") & (ie.ele_type == "G") & ~ie.file_num.isin(superseded)].copy()
@@ -79,4 +82,6 @@ def load_expenditures(cycle):
     purpose = ie.pur.fillna("").str.lower()
     ie["channel"] = np.select([purpose.str.contains(p, regex=True) for _, p in CHANNELS],
                               [c for c, _ in CHANNELS], "Other")
-    return ie[ie.bucket.notna()][["district_id", "spe_id", "spe_nam", "bucket", "channel", "amount"]].reset_index(drop=True)
+    ie["date"] = pd.to_datetime(ie.get("dissem_dt", pd.Series(index=ie.index, dtype=str)).fillna(ie.exp_date),
+                                format="%d-%b-%y", errors="coerce")
+    return ie[ie.bucket.notna()][["district_id", "spe_id", "spe_nam", "bucket", "channel", "amount", "date"]].reset_index(drop=True)

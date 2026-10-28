@@ -18,9 +18,9 @@ seats of a numerical solver on the real backtests. The larger chunk sizes
 only matter in that convex tail under steep spending assumptions.
 
 Objectives that weigh outcomes across national environments (a majority
-probability, tail risk) need the national error (seat_distribution.py);
-expected seats don't, because averaging Phi((mu + eta) / sigma_district)
-over the national swing eta gives back Phi(mu / sigma).
+probability, tail risk) need the shared errors (seat_distribution.py);
+expected seats don't, because averaging Phi((mu + eta + u) / sigma_district)
+over the national and state swings eta and u gives back Phi(mu / sigma).
 """
 
 import numpy as np
