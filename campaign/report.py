@@ -12,7 +12,11 @@ from .break_even import MAX_SCALE
 from .channel_mix import BAND_LABELS
 from .compare_maps import compare_maps
 from .fit_baseline import fit_baseline
+from .household_index import STRESS
+from .dated_forecast import CHECKPOINTS
+from .load_expenditures import load_expenditures
 from .media_cost import GAMMAS
+from .national_test import PASS_P
 from .plots.plot_allocation import plot_allocation
 from .plots.plot_battleground import plot_battleground
 from .plots.plot_calibration import plot_calibration
@@ -28,10 +32,11 @@ from .spending_effect import HALF_SATURATION, SCALE_PTS, spending_effect
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def report(races, backtests, fc, games, media, mixes):
+def report(races, backtests, fc, games, media, mixes, national):
     """`races`: cycle -> build_races(cycle); `backtests`: backtest() results
     in cycle order; `fc`: forecast(); `games`: cycle -> solve_game();
-    `media`: media_cost() results; `mixes`: channel_mix() results."""
+    `media`: media_cost() results; `mixes`: channel_mix() results;
+    `national`: national_test() results plus the national_table() as 'table'."""
     fig = ROOT / "figures"
     fig.mkdir(exist_ok=True)
     last = max(c for c in races if c < fc["cycle"])
@@ -107,6 +112,54 @@ def report(races, backtests, fc, games, media, mixes):
     r20 = next(b["races"] for b in backtests if b["cycle"] == 2020)
     lost_2020 = int(((r20.p > 0.8) & (r20.dccc > 0) & (r20.margin < 0)).sum())
     safe_inc = pooled.dccc[(pooled.p > 0.8) & (pooled.status == "D incumbent")].sum() / pooled.dccc[pooled.p > 0.8].sum()
+
+    # the forecast a Sept 1 decision could make (backtest's "sept")
+    sept_rows = "\n".join(
+        f"| {b['cycle']} | {b['sept']['gb']:+.1f} | {d['mean']:+.1f} (spread {d['sd']:.1f}, {d['n']} elections) | "
+        f"{b['sept']['gb'] + d['mean']:+.1f} | {r.gb.iloc[0]:+.1f} | "
+        f"{b['scores']['with']['log_loss']:.3f} / {b['scores']['sept']['log_loss']:.3f} | "
+        f"{b['seats']['p10']}-{b['seats']['p90']} / {b['sept']['seats']['p10']}-{b['sept']['seats']['p90']} | {b['seats']['actual']} |"
+        for b in backtests for r, d in [(b["races"], b["sept"]["drift"])])
+    ll_final, ll_sept = (np.mean([b["scores"][k]["log_loss"] for b in backtests]) for k in ("with", "sept"))
+    sept_better = [str(b["cycle"]) for b in backtests if b["scores"]["sept"]["log_loss"] < b["scores"]["with"]["log_loss"]]
+    covered_sept = sum(b["sept"]["seats"]["p10"] <= b["seats"]["actual"] <= b["sept"]["seats"]["p90"] for b in backtests)
+    drift_last = backtests[-1]["sept"]["drift"]
+    safe_sept = pooled.dccc[pooled.p_sept > 0.8].sum() / pooled.dccc.sum()
+    multiplier = lambda k: f"{k:.1f}x" if np.isfinite(k) else "no DCCC money"
+    def safe_when_spent(b):      # share of DCCC's dollars that went to races 80%+ when they were spent
+        t = b["when_spent"]["tranches"]
+        return t.amount[t.p > 0.8].sum() / t.amount.sum()
+    judged_rows = "\n".join(
+        f"| {b['cycle']} | {r.dccc[r.p > 0.8].sum() / r.dccc.sum():.0%} / {r.dccc[r.p_sept > 0.8].sum() / r.dccc.sum():.0%} / "
+        f"{safe_when_spent(b):.0%} | {r.model_dccc_sept[r.p_sept > 0.8].sum() / max(r.model_dccc_sept.sum(), 1):.0%} | "
+        f"{b['gain']:+.2f} / {b['sept']['gain']:+.2f} | {multiplier(b['belief'][HALF_SATURATION].multiplier['80%+'])} / "
+        f"{multiplier(b['sept']['belief'][HALF_SATURATION].multiplier['80%+'])} / "
+        f"{multiplier(b['when_spent']['belief'][HALF_SATURATION].multiplier['80%+'])} |"
+        for b in backtests for r in [b["races"]])
+    sept_k = [b["sept"]["belief"][HALF_SATURATION].multiplier["80%+"] for b in backtests]
+    spent_k = [b["when_spent"]["belief"][HALF_SATURATION].multiplier["80%+"] for b in backtests]
+    budgets = np.array([b["races"].dccc.sum() for b in backtests])
+    safe_spent = float(np.dot([safe_when_spent(b) for b in backtests], budgets) / budgets.sum())
+
+    # how the forecast changes through the fall, checkpoint by checkpoint
+    tranche_dollars = pd.concat([b["when_spent"]["tranches"] for b in backtests]).groupby("checkpoint").amount.sum()
+    label = lambda md: f"{pd.Timestamp(f'2000-{md}'):%b} {int(md[3:])}"
+    ll_at = {d: np.mean([b["scores"][d]["log_loss"] for b in backtests]) for d in CHECKPOINTS}
+    term_rows = "\n".join(
+        f"| {label(d)} | {backtests[-1]['when_spent']['drift'][d]['mean']:+.1f} | {backtests[-1]['when_spent']['drift'][d]['sd']:.1f} | "
+        f"{ll_at[d]:.3f} | {tranche_dollars.get(d, 0) / tranche_dollars.sum():.0%} |" for d in CHECKPOINTS)
+    worst = max(((b["scores"][d]["log_loss"] - b["scores"]["with"]["log_loss"], b["cycle"], d) for b in backtests for d in CHECKPOINTS))
+    worst_b = next(b for b in backtests if b["cycle"] == worst[1])
+    dated_ballot = pd.read_csv(ROOT / "data" / "generic_ballot_dated.csv", dtype={"date": str}).set_index(["cycle", "date"]).generic_ballot
+    shifted = [b for b in backtests if (b["races"].dccc[b["races"].p > 0.8].sum() - b["races"].dccc[b["races"].p_sept > 0.8].sum())
+               / b["races"].dccc.sum() > 0.05]
+    years_shifted = [str(b["cycle"]) for b in shifted]
+    shifted_text = (", ".join(years_shifted[:-1]) + " and " + years_shifted[-1]) if len(years_shifted) > 1 else "".join(years_shifted)
+    shifted_why = all(b["races"].gb.iloc[0] > b["sept"]["gb"] + b["sept"]["drift"]["mean"] for b in shifted)
+    timing = pd.concat([load_expenditures(b["cycle"]).query("bucket == 'dccc'").assign(cycle=b["cycle"]) for b in backtests])
+    by_date = lambda md: pd.to_datetime(timing.cycle.astype(str) + md)
+    early_share = timing.amount[timing.date <= by_date("-09-30")].sum() / timing.amount.sum()
+    late_share = timing.amount[timing.date > by_date("-10-15")].sum() / timing.amount.sum()
 
     # 2020 with and without the incumbent history (first-term flags, last cycle's overperformance)
     defended_lost = {col: r20[(r20[col] > 0.8) & (r20.dccc > 0) & (r20.margin < 0)] for col in ("p", "p_without")}
@@ -207,6 +260,50 @@ def report(races, backtests, fc, games, media, mixes):
     mix_years = f"{min(m.cycle.iloc[0] for m in mixes)}-{max(m.cycle.iloc[0] for m in mixes)}"
     lr20 = next(b["races"] for b in backtests if b["cycle"] == 2020).query("tier == 'Likely R' and margin.notna()")
 
+    # section 8: household stress against the national polling miss
+    nt, comp = national["table"], national["composites"]
+    party = {"D": "Democrats", "R": "Republicans"}
+    nat_span, nat_n = f"{nt.index.min()}-{nt.index.max()}", len(nt)
+    nat_rows = "\n".join(f"| {y} | {party[r.president]} | {r.gb_sept:+.1f} | {r.gb:+.1f} | {r.house_vote:+.1f} | "
+                         f"{r.miss_sept:+.1f} | {r.miss:+.1f} | {r.basket:+.1f}% | {r.stress:+.2f} |" for y, r in nt.iterrows())
+    labels = {"basket": "cost basket", "stress": "credit and labor stress"}
+    sept, econ = national["sept"], national["economics"]
+
+    def both(key):               # final, then September, scores for one model
+        get = (lambda res: res[key]) if key in national else (lambda res: res["composites"][key])
+        return " | ".join(f"{get(res)['loo']:.2f} | {get(res)['forward']:.2f}" for res in (national, sept))
+    model_rows = "\n".join([f"| Polls' average lean | {both('constant')} |", f"| + president's party | {both('president')} |",
+                            f"| + president's party in midterms (no economic data) | {both('midterm')} |"]
+                           + [f"| + {labels[k]} x president's party | {both(k)} |" for k in comp])
+    sept_passed = [labels[k] for k, v in sept["composites"].items() if v["passes"]]
+    sb, ss = sept["composites"]["basket"], sept["composites"]["stress"]
+    econ_rows = "\n".join(
+        [f"| Final polls, plus their average lean | {national['constant']['loo']:.2f} | {national['constant']['forward']:.2f} |",
+         f"| Sept 1 polls, plus their average lean | {sept['constant']['loo']:.2f} | {sept['constant']['forward']:.2f} |",
+         f"| Economics only: president's party and a midterm penalty, no economic data | {econ['midterm']['loo']:.2f} | {econ['midterm']['forward']:.2f} |"]
+        + [f"| Economics only: + {labels[k]} | {econ[k]['loo']:.2f} | {econ[k]['forward']:.2f} |" for k in comp])
+    best_econ = min(v["loo"] for v in econ.values())
+    tie = abs(econ["midterm"]["forward"] - sept["constant"]["forward"])
+    vs_sept = ("roughly ties" if tie < 0.25 else "beats" if econ["midterm"]["forward"] < sept["constant"]["forward"] else "trails")
+    sept_over = int((nt.miss_sept < 0).sum())
+    passed = [labels[k] for k, v in comp.items() if v["passes"]]
+    verdict = ("Neither composite earns a place in the forecast" if not passed else
+               f"The {' and '.join(passed)} earn{'s' if len(passed) == 1 else ''} a place in the forecast")
+    worse = [labels[k] for k, v in comp.items() if v["loo"] > national["president"]["loo"] and v["forward"] > national["president"]["forward"]]
+    yb, ys = nt.basket.idxmax(), nt.stress.idxmax()
+
+    def against_polls(year):     # how the president's party ran against its final polls
+        gap = nt.s[year] * nt.miss[year]
+        return f"{party[nt.president[year]]}, the president's party, ran {abs(gap):.1f} points {'ahead of' if gap > 0 else 'behind'} their final polls"
+
+    def direction(c):
+        return "points the way the hypothesis says" if c < 0 else "runs the opposite way"
+    cb, cs = comp["basket"], comp["stress"]
+    lean_best = national["constant"]["loo"] < national["president"]["loo"] and national["constant"]["forward"] < national["president"]["forward"]
+    lean_text = (f" Knowing which party holds the White House doesn't help either: the polls' average lean alone "
+                 f"(Democrats running {abs(nt.miss.mean()):.1f} points {'behind' if nt.miss.mean() < 0 else 'ahead of'} "
+                 f"their final polls) predicts best." if lean_best else "")
+
     text = f"""# Campaign allocation report
 
 Generated by `python run.py` on {dt.date.today().isoformat()}. Every number below is computed by the pipeline unless marked otherwise.
@@ -216,7 +313,9 @@ Generated by `python run.py` on {dt.date.today().isoformat()}. Every number belo
 - **The forecast holds up out of sample.** Each year from {years} was predicted using only earlier elections. Brier scores run from {min(b['brier'] for b in backtests):.3f} to {max(b['brier'] for b in backtests):.3f}, and predicted and actual win rates match by tier from Safe D through Lean R (figure 3).
 - **DCCC's own spending was close to the best use of the same money, if you trust the polls.** At the default spending assumption, reallocating DCCC's budget would have gained {min(b['gain'] for b in backtests):+.2f} to {max(b['gain'] for b in backtests):+.2f} expected seats per cycle (average {mean_gain:+.2f}). Even the most generous assumption tested gains at most {max(max(b['grid'].values()) for b in backtests):+.2f}. The main difference: DCCC put {safe_dccc:.0%} of its money into races already 80%+ likely to go Democratic, {safe_inc:.0%} of it protecting its own incumbents. In 2020 that caution was justified: {lost_2020} of those "safe" seats were lost anyway. And part of what looks like over-caution was the forecast's error, not DCCC's. First-term members, many elected in a wave, run well behind the usual incumbency edge. Flagging them, and carrying over each seat's last result, cuts the share of DCCC's 2020 money the forecast calls safe from {safe_20['p_without']:.0%} to {safe_20['p']:.0%} (figure 4, sections 4-5).
 - **Two readings that don't assume how strong party money is.** Reallocating DCCC's budget gains a full seat only if its first $1M in a race moves the margin {min(first_needed):.1f}-{max(first_needed):.1f} points, against {first_default:.2f} assumed. And DCCC's own split is optimal only if a dollar in its 80%+ races works {min(safe_k.values()):.1f}-{max(safe_k.values()):.1f} times as hard as one in its 20-80% races, or those seats are worth that much more to it (section 5).
+- **Judged with what a Sept 1 decision could see, less of that money looks over-cautious.** A forecast built from the Sept 1 polls plus the usual fall drift (about {abs(drift_last['mean']):.0f} points toward {'Republicans' if drift_last['mean'] < 0 else 'Democrats'}) is about as accurate on average as the final-poll one (log loss {ll_sept:.3f} against {ll_final:.3f}, better in {len(sept_better)} of {len(backtests)} years), and its seat ranges hold the result in {covered_sept} of {len(backtests)} years. Under it, DCCC's share in 80%+ seats falls from {safe_dccc:.0%} to {safe_sept:.0%}. Judging each dollar by the forecast on the date it reached voters instead (checkpoints from Sept 1 to Oct 25), the share is {safe_spent:.0%}, and what's left still implies a dollar in a safe seat works {np.nanmin(spent_k):.1f}-{np.nanmax(spent_k):.1f} times as hard. Through the fall the national uncertainty shrinks, but the race forecasts don't get sharper (sections 4-5).
 - **Neither strategy nor TV prices explain that defensive spending.** In a two-player game against NRCC, DCCC's best play puts at most {max_eq_safe:.0%} of its money in 80%+ seats (figure 5). DCCC already spends about half as much per race in the costliest TV markets, and pricing in market cost makes the model leave them almost entirely. No spender shifts toward mail where TV is most expensive (figure 6).
+- **{'Household stress does not explain where the polls miss.' if not passed else 'Household stress helps explain where the polls miss.'}** Over the {nat_n} elections with a final RealClearPolitics generic-ballot average ({nat_span}), {'neither the household cost basket from the HOUSING AFFORDABILITY TRACKER (its own items and weights, pulled from FRED) nor a credit-and-labor stress index predicts' if not passed else 'the ' + ' and '.join(passed) + ' predict' + ('s' if len(passed) == 1 else '')} where the House vote lands relative to the polls{'; both make the prediction worse' if len(worse) == len(comp) else ''}. {'The same holds against the polls on Sept 1, when the allocation decision is made' if not sept_passed else 'Against the Sept 1 polls, the ' + ' and '.join(sept_passed) + ' help'}, and a ballot built from economics alone misses the House vote by more than the September polls do leaving one election out ({best_econ:.1f} points against {sept['constant']['loo']:.1f}) (section 8).
 - **{fc['cycle']}: the national environment matters more than the new maps.** Redrawn maps in {redrawn.nunique()} states move Harris-won districts from {int(harris_old.sum())} to {int(harris_new.sum())} in those states (figure 7). At the current D{gb:+.1f} generic ballot, the model expects {s26['mean']:.0f} Democratic seats among {len(fc['races'])} modeled races (80% range {s26['p10']}-{s26['p90']}), a {s26['p_majority']:.0%} chance of a majority. A 3-point polling miss moves the expected total by about {(seats[round(gb + 3, 1)] - seats[round(gb - 3, 1)]) / 2:.0f} seats (figures 8-9).
 
 ## 1. Data
@@ -228,7 +327,8 @@ Generated by `python run.py` on {dt.date.today().isoformat()}. Every number belo
 | [Jonathan Cervas](https://jonathancervas.com/maps/media-markets/) | Each district's population by Nielsen TV market, 2022-2026 lines | Derived by Cervas from Nielsen market boundaries and Census 2024 county estimates. Parsed from his page at run time, not redistributed |
 | [FEC bulk data](https://www.fec.gov/data/browse-data/?tab=bulk-data) | All-candidate summaries (weball), each candidate's principal campaign committee (cn), and every reported independent expenditure, 2012-2026 | Public, no API key |
 | [FEC API](https://api.open.fec.gov/developers/) | Each House campaign's July report: money raised and spent through June 30 of the election year, 2012-2026 | Public; needs a free api.data.gov key in `FEC_API_KEY` |
-| [`data/generic_ballot.csv`](data/generic_ballot.csv) | Final RealClearPolitics generic-ballot average before each election | Compiled by hand, sources in the file |
+| [`data/generic_ballot.csv`](data/generic_ballot.csv) | Final RealClearPolitics generic-ballot average before each election, 2002-2026, and the average on Sept 1, 2002-2024 | Compiled by hand, sources in the file |
+| [FRED](https://fred.stlouisfed.org) | The HOUSING AFFORDABILITY TRACKER's household price basket ({nt.basket_items.max()} series) and {len(STRESS)} credit and labor series, monthly or quarterly | Section 8 only. Public, no key. Today's revised values |
 
 **What the raw data gets wrong, and what this repo does about it** (each checked by hand while building this repo, October 2026):
 
@@ -306,7 +406,7 @@ Each year is forecast from a model fit only on earlier years.
 |---|---|---|---|---|---|---|
 {bt_rows}
 
-Seats are counted among modeled races, so Alaska and races with under $100K of spending are left out. The biggest miss is 2020, and three errors stacked up there. The polls overstated Democrats nationally, and the average contested race ran {-behind['mu'].mean():.1f} points behind the forecast. Democratic incumbents ran {-behind['mu'][c20.status == 'D incumbent'].mean():.1f} points behind and Republican incumbents only {-behind['mu'][c20.status == 'R incumbent'].mean():.1f}: the 2020 forecast learned incumbency from earlier years, and the edge shrank sharply after 2016 (section 8). And many of those Democrats were first-term members elected in the 2018 wave. Without the incumbent history below they ran {-behind['mu_without'][fresh20].mean():.1f} points behind the forecast; with it, {-behind['mu'][fresh20].mean():.1f}, in line with the {-behind['mu'][vet20].mean():.1f} of other Democratic incumbents.
+Seats are counted among modeled races, so Alaska and races with under $100K of spending are left out. The biggest miss is 2020, and three errors stacked up there. The polls overstated Democrats nationally, and the average contested race ran {-behind['mu'].mean():.1f} points behind the forecast. Democratic incumbents ran {-behind['mu'][c20.status == 'D incumbent'].mean():.1f} points behind and Republican incumbents only {-behind['mu'][c20.status == 'R incumbent'].mean():.1f}: the 2020 forecast learned incumbency from earlier years, and the edge shrank sharply after 2016 (section 9). And many of those Democrats were first-term members elected in the 2018 wave. Without the incumbent history below they ran {-behind['mu_without'][fresh20].mean():.1f} points behind the forecast; with it, {-behind['mu'][fresh20].mean():.1f}, in line with the {-behind['mu'][vet20].mean():.1f} of other Democratic incumbents.
 
 **What the incumbent history adds.** The same forecast without the first-term flags and last cycle's overperformance, fit and scored the same way:
 
@@ -333,6 +433,23 @@ Averaged over {years}, log loss is {ll_mean['hindsight']:.3f} with hindsight and
 {chr(10).join(seat_rows)}
 
 The 80% range held the actual result in {covered} of {len(backtests)} years, and the favorite for the majority won in {calls_right} of {len(backtests)}. Outside the range: {missed_text}. ("Needed" counts only modeled races; seats outside the model are credited by their partisan lean.) Each backtest's national error rests only on the cycles before it: {len(backtests[0]['model']['cycles'])} for {backtests[0]['cycle']}, {len(backtests[-1]['model']['cycles'])} for {backtests[-1]['cycle']}. Treating its size as known instead, the 80% ranges average {width_known:.0f} seats wide rather than {width:.0f} and hold the result in {covered_known} of {len(backtests)} years. The fatter tails also pull each race a little toward even, so expected seats here can differ by a seat or two from the race-by-race total in the first table.
+
+**The forecast a Sept 1 decision could make.** Everything above uses the final pre-election generic ballot, which a decision made in September didn't have. The Sept 1 version (`fall_drift.py`) feeds the same fitted model the generic ballot on Sept 1, plus the average fall drift of earlier elections: how far the polls moved between Sept 1 and the final average. It adds the drift's spread to the national error, since every race moves with it. The polls have moved toward {'Republicans' if drift_last['mean'] < 0 else 'Democrats'} through the fall, by {abs(drift_last['mean']):.1f} points on average over the {drift_last['n']} elections before {backtests[-1]['cycle']}, give or take {drift_last['sd']:.1f}.
+
+| Year | Generic ballot, Sept 1 | Expected fall drift (from earlier elections) | Best guess of the final | Final generic ballot | Log loss: final polls / Sept 1 | 80% seat range: final polls / Sept 1 | Actual seats |
+|---|---|---|---|---|---|---|---|
+{sept_rows}
+
+Averaged over {years}, log loss is {ll_sept:.3f} at Sept 1 against {ll_final:.3f} with the final polls. The Sept 1 forecast does better in {', '.join(sept_better) if sept_better else 'no year'} and worse in the other {len(backtests) - len(sept_better)}, as older information should{', so its edge on average comes from that one year' if len(sept_better) == 1 else ''}. Its wider uncertainty makes the seat ranges more honest: they hold the result in {covered_sept} of {len(backtests)} years, against {covered} with the final polls.
+
+**Through the fall.** The same forecast can be made at any date (`dated_forecast.py`): the generic ballot that day plus the average drift from that date to the final average, and outside money counted as far as it had reached voters by then, in the training years too. Five checkpoints, with each date's generic ballot and its source in [`data/generic_ballot_dated.csv`](data/generic_ballot_dated.csv):
+
+| Checkpoint | Expected drift to the final average (from the {backtests[-1]['when_spent']['drift'][CHECKPOINTS[0]]['n']} elections before {backtests[-1]['cycle']}) | Its spread | Log loss, {years} | DCCC's money that reached voters from then until the next checkpoint |
+|---|---|---|---|---|
+{term_rows}
+| Final polls (hindsight) | 0 | 0 | {ll_final:.3f} | |
+
+The national uncertainty shrinks through the fall, from a spread of {backtests[-1]['when_spent']['drift'][CHECKPOINTS[0]]['sd']:.1f} points at {label(CHECKPOINTS[0])} to {backtests[-1]['when_spent']['drift'][CHECKPOINTS[-1]]['sd']:.1f} by {label(CHECKPOINTS[-1])}. The race forecasts don't get sharper on average, though: log loss stays between {min(ll_at.values()):.3f} and {max(ll_at.values()):.3f} at every checkpoint, against {ll_final:.3f} with the final polls. Polls can swing and come back: the checkpoint furthest behind its own year's final-poll forecast is {label(worst[2])}, {worst[1]} (log loss {worst_b['scores'][worst[2]]['log_loss']:.3f} against {worst_b['scores']['with']['log_loss']:.3f}), when the generic ballot stood at {dated_ballot[(worst[1], worst[2])]:+.1f}, against a final average of {worst_b['races'].gb.iloc[0]:+.1f}. (Dollars out before Sept 1 are counted with the Sept 1 checkpoint.)
 
 ## 5. Was DCCC's money well placed?
 
@@ -361,6 +478,14 @@ At the default half-saturation the scale would have to be {min(be_default) / SCA
 {chr(10).join(protect_rows)}
 
 Outside 2018, most of it protects DCCC's own incumbents, consistent with its "Frontline" program for vulnerable members. In 2018 the 80%+ money went to Republican seats the forecast already had as likely pickups. In 2020 the caution was justified, and part of what looks like over-caution was the forecast's own error. Without the incumbent history, the forecast puts {safe_20['p_without']:.0%} of DCCC's 2020 money in 80%+ seats, and {len(lost_without)} of the seats DCCC defended there were lost, {fresh_lost} of them held by first-term members. With it, that share is {safe_20['p']:.0%}, and {', '.join(cleared) if cleared else 'none'} drop below 80%. {', '.join(still)} stay above 80% and were lost anyway{(', and ' + ', '.join(added) + (' is' if len(added) == 1 else ' are') + ' newly rated above 80% and lost') if added else ''}. The 2020 forecast still overrated Democratic incumbents as a group (section 4). Whether DCCC's money saved any others can't be seen in this data. So "close to optimal" is conditional on the forecast being right. DCCC's main deviation from it is insurance against it being wrong, concentrated on its own members. Two other objectives were tested while building this repo and are not in the pipeline. Maximizing the probability of a majority reproduces the defense in 2018 and 2020 but goes on offense in years Democrats trail (2016, 2022, 2024). Maximizing expected seats in the worst quarter of national environments adds defense every year, but most in the years DCCC defended least. Neither matches DCCC by itself.
+
+**Judged with what DCCC could see.** DCCC's money reaches voters from September to November: {early_share:.0%} of it by Sept 30 and {late_share:.0%} after Oct 15 ({years}). So the readings are redone two ways (section 4): every dollar judged by the Sept 1 forecast, and each dollar judged by the forecast at the last checkpoint before it reached voters ("when spent"). The best allocation and the gain need one forecast for the whole budget, so they use Sept 1.
+
+| Year | DCCC's budget in 80%+ races: final polls / Sept 1 / when spent | Model, same budget, in 80%+ races (Sept 1) | Gain from reallocating: final polls / Sept 1 | 80%+ multiplier: final polls / Sept 1 / when spent |
+|---|---|---|---|---|
+{judged_rows}
+
+Pooled, the share of DCCC's money in races the forecast calls 80%+ falls from {safe_dccc:.0%} to {safe_sept:.0%}.{(' The change is in ' + shifted_text + (', years when' if len(shifted) > 1 else ', a year when') + " the final polls ended up more Democratic than a September forecaster, expecting the usual fall drift, would have guessed. Seats that look safe in hindsight looked less safe then.") if shifted and shifted_why else ''} The gain from reallocating barely changes, and DCCC's remaining 80%+ money still implies a dollar there works {np.nanmin(sept_k):.1f}-{np.nanmax(sept_k):.1f} times as hard as one in a 20-80% race. Judged dollar by dollar, the share is {safe_spent:.0%}, between the two: later in the fall the polls and the outside money had mostly moved toward what the final-poll forecast says, and the multiplier is {np.nanmin(spent_k):.1f}-{np.nanmax(spent_k):.1f}x. So judging DCCC by what it could see when it spent explains about {1 - safe_spent / safe_dccc:.0%} of its safe-seat spending pooled ({1 - safe_sept / safe_dccc:.0%} if every dollar is judged at Sept 1), and not the rest.
 
 **What would DCCC have to believe?** The model's allocation stops where the last dollar in every funded race buys the same expected seats (apart from races at the 15% cap). DCCC's own allocation can be read backwards against that condition: at DCCC's actual spending, what does one more expected seat cost at the margin in each band, and how much harder would a dollar have to work in the costlier bands for DCCC's split to be optimal?
 
@@ -430,14 +555,55 @@ Averaging over the national and state errors instead of fixing them gives the fu
 
 Individual races move {bound_swing.min() * 100:.0f}-{bound_swing.max() * 100:.0f} points, but the shifts run in both directions and largely cancel: treating all {len(moved)} redrawn incumbents as open moves the expected Democratic total by {bound_net:+.1f} seats.
 
-## 8. Limitations
+## 8. Does household stress explain where the polls miss?
+
+The forecast applies the final generic ballot 1:1 as the national environment. If household costs or credit stress move voters in ways the polls miss, a measure of them should predict where the House vote lands relative to the polls. That is a national question, so it isn't limited to the race-level model's seven cycles: it can use every election with a final RealClearPolitics average, {nat_span} ({nat_n} elections). Earlier years have only single polls from different pollsters, which would mix a much noisier measurement in.
+
+Two composites were fixed before either was compared with an election result (`household_index.py`), both measured June over June of the election year, which a September decision can see:
+
+- **Cost basket:** the household basket from the HOUSING AFFORDABILITY TRACKER sheet, each item's price change weighted 1-3 as the sheet weights it, pulled from FRED. It covers {nt.basket_items.min()} items in {nt.basket_items.idxmin()} and {nt.basket_items.max()} by {nt.basket_items.idxmax()}, as series start.
+- **Credit and labor stress:** the average change, in points, of the unemployment rate, U-6, and banks' credit card and mortgage delinquency rates.
+
+The test (`national_test.py`) regresses the miss (House vote minus generic ballot, Democratic margin) on the polls' average lean, the president's party (+1 Democratic, -1 Republican), and the composite times the president's party. The hypothesis is that the president's party runs further behind its polls when household stress is high. A composite passes only if it beats the model without it both leaving one election out and forward in time (each year from 2012 predicted from the years before), and shuffling it across elections gives an effect at least as strong less than {PASS_P:.0%} of the time.
+
+The same test also runs against the generic ballot on Sept 1, the polls a September decision actually sees: RealClearPolitics' own average that day, read from the daily series on its pages (2008-{nt.index.max()}). For 2002-2006, which have no average for that date, it uses the mean spread of each nonpartisan pollster's latest poll in the 30 days before. Where both exist, that rule lands within about a point of RealClearPolitics' own average. Every value and its source is in [`data/generic_ballot_dated.csv`](data/generic_ballot_dated.csv).
+
+| Year | President's party | Generic ballot, Sept 1 | Generic ballot, final | House vote | Miss vs Sept 1 | Miss vs final | Cost basket | Credit and labor stress (pts) |
+|---|---|---|---|---|---|---|---|---|
+{nat_rows}
+
+Prediction error of the miss (root mean square, points):
+
+| Model | Final polls: leaving one out | Final polls: forward, 2012-{nt.index.max()} | Sept 1 polls: leaving one out | Sept 1 polls: forward |
+|---|---|---|---|---|
+{model_rows}
+
+{verdict}. The basket's effect {direction(cb['coef']['c'])} but is small: {cb['coef']['c']:+.2f} points per point of basket inflation, about {cb['coef']['c'] * nt.basket[yb]:+.1f} in {yb}, and shuffling the basket across elections gives one at least as negative {cb['p']:.0%} of the time. Credit and labor stress {direction(cs['coef']['c'])} ({cs['coef']['c']:+.2f} per point; {cs['p']:.0%} of shuffles come out at least as negative). The two biggest shocks show why. In {yb} the basket rose {nt.basket[yb]:.1f}%, the most of any year here, and {against_polls(yb)}. In {ys} credit and labor stress rose the most ({nt.stress[ys]:+.1f} points), and {against_polls(ys)}.{lean_text}
+
+**Against the September polls the answer is the same.** {('Neither composite earns a place there either' if not sept_passed else 'The ' + ' and '.join(sept_passed) + (' earns' if len(sept_passed) == 1 else ' earn') + ' a place there')}: the basket's effect is {sb['coef']['c']:+.2f} per point ({sb['p']:.0%} of shuffles at least as negative) and stress's {ss['coef']['c']:+.2f} ({ss['p']:.0%}). The September polls miss by more than the final ones, {sept['constant']['loo']:.1f} points against {national['constant']['loo']:.1f} leaving one out, and they lean: Democrats ran behind their Sept 1 polls in {sept_over} of {nat_n} years, by {abs(nt.miss_sept.mean()):.1f} points on average. Most of that is gone by the final polls ({abs(nt.miss.mean()):.1f} points), so the polls tend to drift toward Republicans through the fall. Knowing which party holds the White House or whether it's a midterm doesn't predict how far, and neither do the composites.
+
+**Can a ballot built from economics replace the polls?** Predicting the House vote itself (root mean square error, points):
+
+| Prediction | Leaving one election out | Forward, 2012-{nt.index.max()} |
+|---|---|---|
+{econ_rows}
+
+Leaving one election out, the best economics-only ballot misses by {best_econ:.1f} points, against {sept['constant']['loo']:.1f} for the September polls and {national['constant']['loo']:.1f} for the final ones. Forward in time, the version with no economic data at all, only which party holds the White House and whether it's a midterm, {vs_sept} the September polls ({econ['midterm']['forward']:.2f} against {sept['constant']['forward']:.2f}). Adding the cost basket or credit and labor stress makes it worse ({econ['basket']['forward']:.2f} and {econ['stress']['forward']:.2f}).
+
+The final polls already move a little with both: the president's party's generic-ballot margin correlates {cb['gb_corr']:+.2f} with the basket and {cs['gb_corr']:+.2f} with stress across these years, so by November some of it is priced in.
+
+The same {nat_n} elections give a second reading on the size of a national miss: a standard deviation of {nt.miss.std():.1f} points, against sigma_national = {m['sigma_national']:.1f} from the race-level model's {len(m['cycles'])} cycles. They measure slightly different things (the national vote against the poll, and the average miss in modeled races), but both put a typical national miss at two to three points.
+
+What this doesn't settle: whether the same stress moves some districts more than others (district exposure from Census data times these composites), and whether the values as first published, rather than today's revised ones, would do better.
+
+## 9. Limitations
 
 - **The spending effect is assumed.** The allocation results depend on it, and public data can't pin it down. Section 5 adds two readings that need less of it: how strong it would have to be for reallocating to matter, and what DCCC's own allocation implies. Both still assume the same curve in every race, and that each party's money moves the margin independently of the other's.
 - **Likely R seats are overrated**, at about {pooled[pooled.tier == 'Likely R'].p.mean():.0%} predicted against {(pooled[pooled.tier == 'Likely R'].margin > 0).mean():.0%} actual. Most of the gap is 2020 ({lr20.p.mean():.0%} predicted, {(lr20.margin > 0).mean():.0%} actual), the national polling miss again, rather than a problem in deep-red seats specifically.
 - **The incumbency effect has shrunk.** Fit on {first}-2016 alone, having the Democrat rather than the Republican as the incumbent is worth {early['d_incumbent']:.0f} points; on 2018-{last}, {late['d_incumbent']:.0f}. The model pools every cycle and gives {fc['cycle']} incumbents {c['d_incumbent']:.0f} points, more than recent cycles alone would. Weighting recent cycles more was tested while building this repo and forecast worse forward in time: the fits got noisy and overconfident. The first-term flag captures the part of the decline that can be predicted.
 - **The incumbency effect is learned from incumbents running in their own districts**, so it is probably too large for members on redrawn {fc['cycle']} maps (bounds in section 7).
 - **{fc['cycle']} nominees are the top spenders reported so far** until official results name them, and their money counts through June 30, as in past cycles. Where the top spender had no House report through June 30 (a Senate run, a campaign that ended, a primary loser), the actual nominees were looked up by hand, with sources, in [`data/nominees_{fc['cycle']}.csv`](data/nominees_{fc['cycle']}.csv): {len(hand_checked)} districts, {', '.join(hand_checked)}. Other districts' top spenders were not checked one by one.{(' Still without a House report through June 30: ' + ', '.join(no_july.district_id) + '; that side counts as $0' + ('. ' + misjudged + (' are' if len(no_july_close) > 1 else ' is') + ' competitive and may be misjudged as a result.' if len(no_july_close) else '.')) if len(no_july) else ''}
-- **The generic ballot is the final pre-election average.** The money feature now uses only what a forecaster deciding on Sept 1 could see, but the national environment doesn't yet: a September decision would work from an earlier, less accurate average.
+- **The main forecast uses the final pre-election generic ballot.** Section 4 adds the forecast a Sept 1 decision could make, and section 5 redoes the safe-seat readings with it. DCCC spends from September to November, so neither is exactly what it saw for any one dollar. The 2026 forecast uses the latest average.
 - **TV-market data starts with the 2022 maps**, so market costs cover the 2022 and 2024 backtests only. Channels come from filers' own purpose descriptions; some say only "MEDIA" and stay unspecified.
 - **The national error is estimated from {len(m['cycles'])} elections.** The seat totals allow for that (a Student t rather than a normal), but each race's own probability, and so the allocation and the backtest scores, still treats its size as known.
 """

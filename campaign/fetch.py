@@ -23,6 +23,9 @@ All sources are public. One needs a free key (FEC's API, below):
 - Jonathan Cervas: TV markets and congressional districts (2022-2026
   lines), embedded in his interactive page, which is saved as-is.
   https://jonathancervas.com/maps/media-markets/
+- FRED (Federal Reserve Bank of St. Louis): the household cost basket and
+  credit and labor series behind household_index.py, one CSV per series.
+  https://fred.stlouisfed.org
 """
 
 import io
@@ -33,6 +36,8 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+
+from .household_index import FRED_IDS
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
 
@@ -48,6 +53,7 @@ DOWNBALLOT_SHEETS = {
 }
 MIT_URL = "https://doi.org/10.7910/DVN/IG0UN2"
 MEDIA_MARKETS_URL = "https://jonathancervas.com/maps/media-markets/"
+FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 FEC_BULK = "https://www.fec.gov/files/bulk-downloads"
 FEC_REPORTS = "https://api.open.fec.gov/v1/reports/house-senate/"
 JULY_REPORTS = ("Q2", "M7")    # quarterly and monthly filers' reports through June 30
@@ -73,6 +79,7 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
         jobs.append((f"{FEC_BULK}/{cycle}/independent_expenditure_{cycle}.csv",
                      RAW / "fec" / f"independent_expenditure_{cycle}.csv", None, cycle))
     jobs.append((MEDIA_MARKETS_URL, RAW / "media_markets.html", None, None))
+    jobs += [(f"{FRED_CSV}?id={sid}", RAW / "fred" / f"{sid}.csv", None, None) for sid in FRED_IDS]
 
     for url, dest, member, cycle in jobs:
         if dest.exists() and cycle not in refresh:

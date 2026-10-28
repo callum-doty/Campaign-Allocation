@@ -17,7 +17,9 @@ Features:
   only as far as a forecaster deciding on Sept 1 could see it: most
   candidate and outside spending comes in the fall, partly following how
   the race is going. It is a forecasting feature, not a causal effect.
-- gb: the generic-ballot polling average heading into the election.
+- gb: the generic-ballot polling average heading into the election. Its
+  values on earlier dates of the campaign are in GENERIC_BALLOT_DATED
+  (dated_forecast.py).
 - dccc / nrcc: the national committees' own spending (the allocation question).
 - tier: a label from PVI and incumbency (incumbent worth +/-2 points), for
   reporting only; the model doesn't use it.
@@ -40,6 +42,7 @@ from .load_results import load_results
 from .load_spending import load_spending
 
 GENERIC_BALLOT = Path(__file__).resolve().parents[1] / "data" / "generic_ballot.csv"
+GENERIC_BALLOT_DATED = Path(__file__).resolve().parents[1] / "data" / "generic_ballot_dated.csv"
 MIN_TOTAL_SPEND = 100_000
 EXCLUDED_STATES = {"AK"}
 FLOOR_PSEUDO_DOLLARS = 10_000

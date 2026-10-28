@@ -1,7 +1,8 @@
 """
 Run the whole pipeline: fetch data, build races, backtest 2016-2024 forward
 in time, solve the two-player game, price in TV-market cost, forecast 2026,
-and write REPORT.md with its figures.
+test household stress against national polling misses, and write REPORT.md
+with its figures.
 
     python run.py              # download what's missing, then run
     python run.py --refresh    # also re-download 2026 FEC files (still being filed)
@@ -19,6 +20,7 @@ from campaign.fetch import fetch  # noqa: E402
 from campaign.forecast import forecast  # noqa: E402
 from campaign.load_media_markets import load_media_markets  # noqa: E402
 from campaign.media_cost import media_cost  # noqa: E402
+from campaign.national_test import economics_only, national_table, national_test  # noqa: E402
 from campaign.report import report  # noqa: E402
 from campaign.solve_game import solve_game  # noqa: E402
 
@@ -45,12 +47,19 @@ def main():
             tv_share = dccc.amount[dccc.channel == "TV"].sum() / dccc.amount.sum()
             media.append(media_cost(b, load_media_markets(b["cycle"]), tv_share))
     fc = forecast(races, LIVE)
-    report(races, backtests, fc, games, media, mixes)
+    table = national_table()
+    national = {**national_test(table), "table": table, "sept": national_test(table.assign(miss=table.miss_sept)),
+                "economics": economics_only(table)}
+    report(races, backtests, fc, games, media, mixes, national)
 
     for b in backtests:
         print(f"{b['cycle']}: Brier {b['brier']:.3f}, gain from reallocating DCCC's money {b['gain']:+.2f} seats")
     print(f"{LIVE}: {fc['seats']['mean']:.0f} expected Democratic seats at D{fc['gb']:+.1f}, "
           f"{fc['seats']['p_majority']:.0%} chance of a majority")
+    for when, res in (("final", national), ("Sept 1", national["sept"])):
+        for name, r in res["composites"].items():
+            print(f"household {name} vs the miss against the {when} polls: {'passes' if r['passes'] else 'fails'} "
+                  f"(leave-one-out error {r['loo']:.2f} vs {res['president']['loo']:.2f}, p = {r['p']:.2f})")
     print("wrote REPORT.md and figures/")
 
 

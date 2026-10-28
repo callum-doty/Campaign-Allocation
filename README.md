@@ -15,6 +15,8 @@ Where should a party committee spend its money across House races? This repo ans
 - **Part of 2020's "safe" money wasn't over-caution.** Incumbency is worth less than half what it was before 2018, and first-term members elected in a wave run further behind still. Flagging them and carrying over each seat's last result improves the forecast out of sample (log loss 0.095 → 0.088), and cuts the share of DCCC's 2020 money the forecast calls safe from 37% to 32%.
 - **Turned around, the answer needs less of the spending assumption.** Reallocating would gain a full seat only if party money were 5 to 10 times as strong as assumed (DCCC's first $1M in a race moving it 1.2-2.5 points, not 0.25). DCCC's own split is optimal only if a dollar in races the forecast already gave Democrats at 80%+ works 1.5 to 4.2 times as hard as one in close races, a ratio that doesn't depend on how strong money is.
 - **Neither strategy nor TV prices explain that.** In a two-player game against NRCC, the equilibrium puts almost nothing in safe seats. DCCC already spends about half as much per race in the costliest TV markets. No spender shifts toward mail where TV is most expensive.
+- **Judged with what a Sept 1 decision could see, part of DCCC's safe-seat spending stops looking over-cautious.** A forecast built from the Sept 1 polls plus the usual fall drift (about 2 points toward Republicans, with its spread as extra uncertainty) is about as accurate on average as the final-poll forecast (log loss 0.087 against 0.088, though only 2020 is better) and its 80% seat ranges hold the result in all 5 backtest years, 2020 included. Under it, DCCC's share of money in 80%+ seats falls from 22% to 17% (2020: 32% to 18%). Judging each dollar instead by the forecast on the date it reached voters (checkpoints from Sept 1 to Oct 25, each with that day's polls and the outside money out by then), the share is 20%: later in the fall the polls and outside money had mostly moved toward what the final polls say. What's left still implies a dollar in a safe seat works 1.4-3.0 times as hard as one in a close race. Through the fall the national uncertainty shrinks, but the race forecasts don't get sharper.
+- **Household stress doesn't explain where the polls miss.** Over the 12 elections with a final RealClearPolitics generic-ballot average (2002-2024), neither the household cost basket from the HOUSING AFFORDABILITY TRACKER (its own items and weights, pulled from FRED) nor a credit-and-labor stress index predicts where the House vote lands relative to the polls. Both were fixed before being tested, and both make the prediction worse, leaving one election out and forward in time. In 2022, with the basket up 14.5%, the president's party ran only 0.3 points behind its polls. The same holds against the polls on Sept 1, when the allocation decision is made. A ballot built from economics alone misses the House vote by 5.3-6.7 points leaving one election out, against 3.4 for the September polls and 2.4 for the final ones. The polls' own lean matters more: Democrats ran behind their Sept 1 polls in 9 of 12 years, by 3.0 points on average, under presidents of both parties.
 - **2026:** the new maps cost Democrats about four Harris-won districts, but a 3-point move in the national environment swings about a dozen expected seats. With polling error shared nationally and within each state, and the size of a national miss treated as uncertain (it rests on seven elections), the model gives Democrats a 97% chance of a majority (98% if that size were known), which is still likely optimistic.
 
 ## Run it
@@ -65,9 +67,16 @@ campaign/
   media_cost.py             allocation with TV-market cost priced in
   channel_mix.py            TV / digital / mail shares by market cost
   compare_maps.py           which districts were redrawn
+  fall_drift.py             how the generic ballot moves from a date in the fall to Election Day
+  dated_forecast.py         the forecast as it stood on a date of the campaign
+  load_fred.py              one FRED series
+  household_index.py        household cost basket and credit/labor stress, June over June
+  national_vote.py          national House popular vote
+  national_test.py          does household stress explain the national polling miss?
   report.py                 write REPORT.md
   plots/                    one chart per file
-data/generic_ballot.csv     polling averages, with sources
+data/generic_ballot.csv     final polling averages, 2002-2026, with sources
+data/generic_ballot_dated.csv  polling averages on five dates each fall, 2002-2024, with sources
 data/nominees_2026.csv      2026 nominees checked by hand where the top-spender guess fails, with sources
 tests/test_model.py
 ```
@@ -79,10 +88,11 @@ tests/test_model.py
 - Campaign finance: **Federal Election Commission** [bulk data](https://www.fec.gov/data/browse-data/?tab=bulk-data) and [API](https://api.open.fec.gov/developers/).
 - TV markets by congressional district: **[Jonathan Cervas](https://jonathancervas.com/maps/media-markets/)**, derived from Nielsen market boundaries and Census county estimates. Parsed from his page at run time and not redistributed here.
 - 2026 nominees in districts where FEC data alone picks the wrong candidate: checked by hand against Wikipedia's 2026 House election pages and news reports, one source per row in [`data/nominees_2026.csv`](data/nominees_2026.csv).
-- Generic-ballot averages: **RealClearPolitics** / RealClearPolling, compiled in [`data/generic_ballot.csv`](data/generic_ballot.csv).
+- Generic-ballot averages: **RealClearPolitics** / RealClearPolling, compiled in [`data/generic_ballot.csv`](data/generic_ballot.csv) (final averages, from 2002) and [`data/generic_ballot_dated.csv`](data/generic_ballot_dated.csv) (the average on five dates each fall, read from RealClearPolitics' daily series for 2008-2024; for 2002-2006, which have none, each nonpartisan pollster's latest poll as RealClearPolitics lists them).
+- Household prices and credit/labor series: **FRED**, Federal Reserve Bank of St. Louis ([fred.stlouisfed.org](https://fred.stlouisfed.org)), no key needed. The basket's items and 1-3 weights come from the HOUSING AFFORDABILITY TRACKER sheet; each item's FRED series is the one matching that sheet's history (`household_index.py`).
 
 ## Caveats
 
 - **The effect of party money is assumed, not measured.** Public data can't separate it from the reasons money goes where it goes. Treat the allocation results as "under this assumption", and replace it with measured effects (for example randomized holdouts on mail or ad programs) when you have them. The break-even effect in the report is the number to compare a measured effect against. Both it and the implied-belief ratios still assume the same curve in every race.
-- **The national environment still uses hindsight.** The generic ballot is the final pre-election average, not the one available in September.
+- **The main forecast uses the final pre-election generic ballot.** The report adds the forecast as it stood on five dates from Sept 1 to Oct 25 (that day's polls plus the usual drift to Election Day, and the outside money out by then) and redoes the safe-seat readings with it, every dollar at Sept 1 and each dollar at the date it was spent. Candidates' own money still counts only through June 30, since later FEC reports aren't downloaded.
 - **No 2026 allocation analysis.** After *NRSC v. FEC* (June 2026), DCCC spends through coordinated expenditures, which aren't in the bulk independent-expenditure file.

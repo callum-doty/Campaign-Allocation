@@ -12,6 +12,15 @@ what that hindsight was worth. Two readings need less of that assumption:
 how strong party money would have to be for reallocating to gain a full
 seat (break_even.py), and how much more effective money would have to be
 in each band of races for DCCC's own split to be optimal (implied_belief.py).
+
+All of that judges a fall of spending with the final pre-election polls,
+which most of DCCC's decisions didn't have. So the cycle is also forecast as
+it stood at each checkpoint of the fall (dated_forecast.py), and the
+safe-seat readings are redone two ways: with the Sept 1 forecast for every
+dollar (DCCC's money in 80%+ races, the best allocation, the implied 80%+
+multiplier), and dollar by dollar, each judged by the forecast at the last
+checkpoint before it reached voters (dollars out before Sept 1 by the Sept 1
+forecast).
 """
 
 import numpy as np
@@ -20,6 +29,8 @@ from scipy.stats import norm
 
 from .break_even import break_even_scale
 from .build_races import FLOOR_PSEUDO_DOLLARS
+from .dated_forecast import CHECKPOINTS, dated_forecast
+from .load_expenditures import load_expenditures
 from .fit_baseline import FEATURES, HISTORY, fit_baseline
 from .implied_belief import implied_belief
 from .predict_margin import predict_margin
@@ -52,10 +63,17 @@ def backtest(cycle, races):
     test["p_without"] = norm.cdf(test.mu_without / without["sigma"])
     hindsight = fit_baseline(hindsight_money(train))
     test["p_hindsight"] = norm.cdf(predict_margin(hindsight_money(test), hindsight) / hindsight["sigma"])
+    dated = {date: dated_forecast(cycle, races, date) for date in CHECKPOINTS}
+    first = dated[CHECKPOINTS[0]]
+    sept = {**first["model"], "sigma": first["sigma"], "sigma_national": first["sigma_national"], "gb": first["gb"]}
+    test["mu_sept"], test["p_sept"] = first["mu"], first["p"]
+    for date, f in dated.items():
+        test[f"p_{date}"] = f["p"]
     known = test[test.margin.notna()].assign(won=lambda t: (t.margin > 0).astype(float))
     calibration = known.groupby("tier").agg(n=("p", "size"), predicted=("p", "mean"), actual=("won", "mean"))
     scores = {}
-    for name, col in (("with", "p"), ("without", "p_without"), ("hindsight", "p_hindsight")):
+    for name, col in [("with", "p"), ("without", "p_without"), ("hindsight", "p_hindsight"), ("sept", "p_sept")] + \
+                     [(date, f"p_{date}") for date in CHECKPOINTS]:
         p = known[col].clip(1e-6, 1 - 1e-6)
         scores[name] = {"brier": float(np.mean((p - known.won) ** 2)),
                         "log_loss": float(-np.mean(known.won * np.log(p) + (1 - known.won) * np.log(1 - p)))}
@@ -69,8 +87,27 @@ def backtest(cycle, races):
     need, states = seats_needed(cycle, test.district_id), test.district_id.str[:2]
     seats = seat_distribution(test.mu, model, need, states)
     seats_known = seat_distribution(test.mu, {**model, "national_df": None}, need, states)
-    seats["actual"] = seats_known["actual"] = int((test.margin > 0).sum())
+    seats_sept = seat_distribution(test.mu_sept, sept, need, states)
+    seats["actual"] = seats_known["actual"] = seats_sept["actual"] = int((test.margin > 0).sum())
+    gain_sept, test["model_dccc_sept"] = reallocation_gain(test.mu_sept, sept["sigma"], test.dccc, cap)
+    sept.update(drift=first["drift"], seats=seats_sept, gain=gain_sept,
+                belief={half: implied_belief(test.mu_sept, sept["sigma"], test.dccc, half) for half in HALF_SATURATIONS})
+
+    # each DCCC dollar judged by the forecast at the last checkpoint before it reached voters
+    spent = load_expenditures(cycle).query("bucket == 'dccc'")
+    spent = spent[spent.district_id.isin(test.district_id)]
+    stamps = pd.to_datetime([f"{cycle}-{d}" for d in CHECKPOINTS])
+    spent = spent.assign(checkpoint=[CHECKPOINTS[max(stamps.searchsorted(d, side="right") - 1, 0)] for d in spent.date])
+    tranches = spent.groupby(["district_id", "checkpoint"]).amount.sum().reset_index()
+    row = tranches.district_id.map(pd.Series(np.arange(len(test)), index=test.district_id))
+    mu_t = np.array([dated[c]["mu"][i] for c, i in zip(tranches.checkpoint, row)])
+    sigma_t = np.array([dated[c]["sigma"] for c in tranches.checkpoint])
+    observed_t = test.dccc.to_numpy()[row]
+    tranches = tranches.assign(p=norm.cdf(mu_t / sigma_t))
+    when_spent = {"tranches": tranches, "drift": {date: f["drift"] for date, f in dated.items()},
+                  "belief": {half: implied_belief(mu_t, sigma_t, observed_t, half, weights=tranches.amount)
+                             for half in HALF_SATURATIONS}}
     return {"cycle": cycle, "model": model, "races": test, "calibration": calibration,
             "brier": scores["with"]["brier"], "scores": scores, "budget": budget, "gain": gain,
             "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats,
-            "seats_known_sigma": seats_known}
+            "seats_known_sigma": seats_known, "sept": sept, "when_spent": when_spent}

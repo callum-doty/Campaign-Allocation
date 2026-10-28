@@ -12,12 +12,16 @@ from scipy.stats import norm
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from campaign import load_candidates as lc  # noqa: E402
+from campaign import fall_drift as fd  # noqa: E402
+from campaign import household_index as hi  # noqa: E402
 from campaign import load_early_money as lem  # noqa: E402
+from campaign import load_fred as lf  # noqa: E402
 from campaign import load_presidential as lp  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
+from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
 from campaign.reallocation_gain import reallocation_gain  # noqa: E402
 from campaign.seat_distribution import seat_distribution  # noqa: E402
@@ -229,3 +233,67 @@ def test_hand_checked_nominees_replace_the_top_spender_guess(tmp_path, monkeypat
     assert picked.cand_id.to_dict() == {"D": "H6AA01002", "R": "H6AA01003"}
     assert picked.ici["R"] == "I"
 
+
+
+def test_household_index_reweights_missing_items_and_reads_june(tmp_path, monkeypatch):
+    months = pd.date_range("2019-01-01", "2020-12-01", freq="MS")
+    quarters = pd.date_range("2019-01-01", "2020-10-01", freq="QS")
+    series = {"A": (months, np.where(months.year == 2020, 110.0, 100.0)),       # +10%, weight 3
+              "B": (months, np.where(months.year == 2020, 51.0, 50.0)),         # +2%, weight 1
+              "C": (months[:-7], np.where(months[:-7].year == 2020, 9.0, 3.0)),  # no June 2020: left out
+              "U": (months, np.where(months.year == 2020, 5.0, 4.0)),           # +1 point, monthly
+              "Q": (quarters, np.where(quarters.year == 2020, 1.0, 2.0))}       # -1 point, quarterly
+    for sid, (dates, values) in series.items():
+        pd.DataFrame({"observation_date": dates.strftime("%Y-%m-%d"), sid: values}).to_csv(tmp_path / f"{sid}.csv", index=False)
+    monkeypatch.setattr(lf, "RAW", tmp_path)
+    monkeypatch.setattr(hi, "BASKET", [("a", "A", 3), ("b", "B", 1), ("c", "C", 3)])
+    monkeypatch.setattr(hi, "STRESS", [("u", "U"), ("q", "Q")])
+    row = hi.household_index([2020]).loc[2020]
+    assert row.basket == pytest.approx((3 * 10 + 1 * 2) / 4)
+    assert row.basket_items == 2
+    assert row.stress == pytest.approx(0.0)
+
+
+def test_national_test_finds_a_planted_effect_and_not_a_missing_one():
+    rng = np.random.default_rng(3)
+    s = np.resize([1.0, -1.0, -1.0, 1.0], len(CYCLES))
+    z = rng.normal(0, 3, len(CYCLES))
+    noise = rng.normal(0, 0.3, len(CYCLES))
+    planted = pd.DataFrame({"s": s, "z": z, "gb": rng.normal(0, 5, len(CYCLES)), "miss": -1 - 0.8 * s * z + noise,
+                            "midterm": [float(c % 4 == 2) for c in CYCLES]}, index=list(CYCLES))
+    found = national_test(planted, composites=("z",), n_perm=2000)["composites"]["z"]
+    assert found["coef"]["c"] == pytest.approx(-0.8, abs=0.1) and found["passes"]
+    absent = national_test(planted.assign(miss=-1 + 2 * noise), composites=("z",), n_perm=2000)["composites"]["z"]
+    assert not absent["passes"] and absent["p"] > 0.1
+
+
+def test_economics_only_recovers_a_vote_driven_by_the_composite():
+    rng = np.random.default_rng(4)
+    s = np.resize([1.0, -1.0, -1.0, 1.0], len(CYCLES))
+    table = pd.DataFrame({"s": s, "z": rng.normal(0, 3, len(CYCLES)), "midterm": [float(c % 4 == 2) for c in CYCLES]},
+                         index=list(CYCLES))
+    table["house_vote"] = s * (2 - 4 * table.midterm - 1.5 * table.z + rng.normal(0, 0.2, len(CYCLES)))
+    scores = economics_only(table, composites=("z",))
+    assert scores["z"]["loo"] < 0.5 < scores["midterm"]["loo"]
+
+
+def test_fall_drift_uses_only_earlier_elections_and_the_right_date(tmp_path, monkeypatch):
+    final, dated = tmp_path / "final.csv", tmp_path / "dated.csv"
+    pd.DataFrame({"cycle": [2002, 2004, 2006, 2008], "generic_ballot": [-1.0, 2.0, 5.0, 40.0]}).to_csv(final, index=False)
+    pd.DataFrame({"cycle": [2002, 2004, 2006, 2008] * 2, "date": ["09-01"] * 4 + ["10-15"] * 4,
+                  "generic_ballot": [1.0, 3.0, 5.0, 0.0, -1.0, 2.0, 5.0, 0.0]}).to_csv(dated, index=False)
+    monkeypatch.setattr(fd, "GENERIC_BALLOT", final)
+    monkeypatch.setattr(fd, "GENERIC_BALLOT_DATED", dated)
+    drift = fd.fall_drift(2008)                        # 2008's own drift (+40) must not leak in
+    assert drift["n"] == 3
+    assert drift["mean"] == pytest.approx(-1.0)        # drifts of -2, -1, 0
+    assert drift["sd"] == pytest.approx(1.0)
+    assert fd.fall_drift(2008, "10-15") == {"mean": 0.0, "sd": 0.0, "n": 3}
+
+
+def test_tranches_judged_alike_give_the_same_reading_as_one_row():
+    mu, sigma, observed = np.array([-15.0, 0.0, 12.0]), 8.0, np.array([1e6, 4e6, 2e6])
+    whole = implied_belief(mu, sigma, observed)
+    split = implied_belief(np.repeat(mu, 2), np.full(6, sigma), np.repeat(observed, 2), weights=np.repeat(observed / 2, 2))
+    assert np.allclose(whole.multiplier, split.multiplier, equal_nan=True)
+    assert np.allclose(whole.dollars, split.dollars)
