@@ -21,18 +21,24 @@ dollar (DCCC's money in 80%+ races, the best allocation, the implied 80%+
 multiplier), and dollar by dollar, each judged by the forecast at the last
 checkpoint before it reached voters (dollars out before Sept 1 by the Sept 1
 forecast).
+
+Last, Job 2's clock (ballot_timing.py): each DCCC dollar is discounted by how
+much of its persuasion is left when voters cast their ballots, and the
+allocation is redone with money timed to each state's ballots, across the
+persuasion half-lives tested.
 """
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from .ballot_timing import HALF_LIVES, ballot_timing, timed_gain
 from .break_even import break_even_scale
 from .build_races import FLOOR_PSEUDO_DOLLARS
 from .dated_forecast import CHECKPOINTS, dated_forecast
-from .load_expenditures import load_expenditures
 from .fit_baseline import FEATURES, HISTORY, fit_baseline
 from .implied_belief import implied_belief
+from .load_expenditures import load_expenditures
 from .predict_margin import predict_margin
 from .reallocation_gain import reallocation_gain
 from .seat_distribution import seat_distribution
@@ -107,7 +113,16 @@ def backtest(cycle, races):
     when_spent = {"tranches": tranches, "drift": {date: f["drift"] for date, f in dated.items()},
                   "belief": {half: implied_belief(mu_t, sigma_t, observed_t, half, weights=tranches.amount)
                              for half in HALF_SATURATIONS}}
+    timing = {}
+    for half_life in HALF_LIVES:
+        t = ballot_timing(cycle, test, half_life=half_life)
+        retime, _ = timed_gain(test.mu, model["sigma"], test.dccc, t.e_obs, t.e_best, cap, move=False)
+        both, x = timed_gain(test.mu, model["sigma"], test.dccc, t.e_obs, t.e_best, cap)
+        landed = test.dccc.to_numpy() * t.e_obs / t.e_best          # DCCC's money as it landed, in best-timed dollars
+        timing[half_life] = {"races": t, "gain_retime": retime, "gain_both": both, "model_dccc": x,
+                             "belief": implied_belief(test.mu, model["sigma"], landed, HALF_SATURATION / t.e_best,
+                                                      weights=test.dccc)}
     return {"cycle": cycle, "model": model, "races": test, "calibration": calibration,
             "brier": scores["with"]["brier"], "scores": scores, "budget": budget, "gain": gain,
             "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats,
-            "seats_known_sigma": seats_known, "sept": sept, "when_spent": when_spent}
+            "seats_known_sigma": seats_known, "sept": sept, "when_spent": when_spent, "timing": timing}

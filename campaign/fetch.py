@@ -26,6 +26,10 @@ All sources are public. One needs a free key (FEC's API, below):
 - FRED (Federal Reserve Bank of St. Louis): the household cost basket and
   credit and labor series behind household_index.py, one CSV per series.
   https://fred.stlouisfed.org
+- U.S. Election Assistance Commission: the Election Administration and
+  Voting Survey for 2016-2024, how each jurisdiction's ballots were cast
+  (load_early_vote.py).
+  https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys
 """
 
 import io
@@ -54,6 +58,18 @@ DOWNBALLOT_SHEETS = {
 MIT_URL = "https://doi.org/10.7910/DVN/IG0UN2"
 MEDIA_MARKETS_URL = "https://jonathancervas.com/maps/media-markets/"
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+# election -> (EAVS public-release file, the CSV inside it if zipped)
+EAVS = {
+    2016: ("https://www.eac.gov/sites/default/files/2023-12/EAVS_2016_for_Public_Release_nolabel_V1.1_CSV.zip",
+           "EAVS_2016_Final_Data_for_Public_Release_nolabel_V1.1_CSV.csv"),
+    2018: ("https://www.eac.gov/sites/default/files/Research/EAVS_2018_for_Public_Release_Updates3.csv", None),
+    2020: ("https://www.eac.gov/sites/default/files/2023-12/2020_EAVS_for_Public_Release_nolabel_V1.2_CSV.zip",
+           "2020_EAVS_for_Public_Release_nolabel_V1.2_CSV.csv"),
+    2022: ("https://www.eac.gov/sites/default/files/2023-12/2022_EAVS_for_Public_Release_nolabel_V1.1_CSV.zip",
+           "2022_EAVS_for_Public_Release_nolabel_V1.1_CSV.csv"),
+    2024: ("https://www.eac.gov/sites/default/files/2026-02/2024_EAVS_for_Public_Release_nolabel_V2_csv.zip",
+           "2024_EAVS_for_Public_Release_nolabel_V2.csv"),
+}
 FEC_BULK = "https://www.fec.gov/files/bulk-downloads"
 FEC_REPORTS = "https://api.open.fec.gov/v1/reports/house-senate/"
 JULY_REPORTS = ("Q2", "M7")    # quarterly and monthly filers' reports through June 30
@@ -80,6 +96,7 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
                      RAW / "fec" / f"independent_expenditure_{cycle}.csv", None, cycle))
     jobs.append((MEDIA_MARKETS_URL, RAW / "media_markets.html", None, None))
     jobs += [(f"{FRED_CSV}?id={sid}", RAW / "fred" / f"{sid}.csv", None, None) for sid in FRED_IDS]
+    jobs += [(url, RAW / "eavs" / f"eavs_{year}.csv", member, None) for year, (url, member) in EAVS.items()]
 
     for url, dest, member, cycle in jobs:
         if dest.exists() and cycle not in refresh:

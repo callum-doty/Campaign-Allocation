@@ -13,11 +13,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from campaign import load_candidates as lc  # noqa: E402
 from campaign import fall_drift as fd  # noqa: E402
+from campaign import load_early_vote as lev  # noqa: E402
 from campaign import household_index as hi  # noqa: E402
 from campaign import load_early_money as lem  # noqa: E402
 from campaign import load_fred as lf  # noqa: E402
 from campaign import load_presidential as lp  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
+from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
@@ -297,3 +299,30 @@ def test_tranches_judged_alike_give_the_same_reading_as_one_row():
     split = implied_belief(np.repeat(mu, 2), np.full(6, sigma), np.repeat(observed, 2), weights=np.repeat(observed / 2, 2))
     assert np.allclose(whole.multiplier, split.multiplier, equal_nan=True)
     assert np.allclose(whole.dollars, split.dollars)
+
+
+def test_persuasion_fades_and_counts_only_ballots_cast_after_it():
+    assert [str(election_day(c).date()) for c in (2020, 2022, 2026)] == ["2020-11-03", "2022-11-08", "2026-11-03"]
+    days = np.arange(0, 29, 7)
+    assert np.allclose(persuasion_weight(days, 0.0, half_life=4), 0.5 ** (days / 4))   # everyone votes on Election Day
+    assert persuasion_weight(-1, 0.3) == 0                                              # after the election
+    all_early = persuasion_weight(np.arange(40), 1.0, half_life=4, window=21)
+    assert all_early[0] == 0 and all_early.argmax() == 21                              # peaks when early voting opens
+
+
+def test_timing_gain_is_zero_when_money_already_landed_at_its_best():
+    mu, observed = np.array([-3.0, 1.0, 6.0]), np.array([2e6, 3e6, 1e6])
+    gain, _ = timed_gain(mu, 8.0, observed, np.ones(3), np.ones(3), cap=3e6, move=False)
+    assert gain == pytest.approx(0.0, abs=1e-12)
+    late, _ = timed_gain(mu, 8.0, observed, np.full(3, 0.5), np.ones(3), cap=3e6, move=False)
+    assert late > 0                                                                    # re-timing badly timed money helps
+
+
+def test_incomplete_states_borrow_the_nearest_complete_year_but_not_2020(monkeypatch):
+    table = pd.DataFrame({"state": ["NJ"] * 4 + ["CO"] * 4, "year": [2018, 2020, 2022, 2024] * 2,
+                          "early_share": [0.13, 0.93, 0.90, 0.88, 0.99, 0.97, 0.96, 0.96],
+                          "coverage": [1.0, 1.0, 0.25, 0.22, 1.0, 1.0, 1.0, 1.0]})
+    monkeypatch.setattr(lev, "early_vote_table", lambda: table)
+    assert lev.early_vote_share(2024)["NJ"] == pytest.approx(0.13)   # 2022 and 2024 incomplete; 2020 not a stand-in
+    assert lev.early_vote_share(2020)["NJ"] == pytest.approx(0.93)
+    assert lev.early_vote_share(2024)["CO"] == pytest.approx(0.96)
