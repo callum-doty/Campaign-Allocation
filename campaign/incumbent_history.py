@@ -40,7 +40,7 @@ def incumbent_history(cycle, races, prior_gb):
     names (name_d, name_r, "SURNAME, FIRST"). `prior_gb`: the generic ballot
     two years earlier."""
     def words(name):  # ascii, upper-case words of a name, suffixes dropped
-        name = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode("ascii").upper()
+        name = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode("ascii").upper().replace("'", "")
         return [w for w in WORD.findall(name) if w not in SUFFIXES]
 
     earlier = load_results(cycle - 4)

@@ -12,6 +12,11 @@ House general-election results by district, from MIT Election Lab.
 - Every candidate with a D (or R) line counts toward that party, which
   handles Louisiana's multi-candidate November election and California's
   top-two (a D-vs-D race shows up as uncontested).
+- Names: about 60 rows, nearly all 2022, are UTF-8 decoded twice ("TOM
+  OâHALLERAN" for O'Halleran's curly apostrophe). They are repaired, and
+  curly quotes straightened, so names match FEC's spelling. Otherwise
+  O'Halleran (AZ-02, 2022) and García (IL-04, 2022) go unmatched and their
+  money counts as $0.
 """
 
 from pathlib import Path
@@ -21,6 +26,18 @@ import pandas as pd
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "house_1976_2024.csv"
 DEM = {"DEMOCRAT", "DEMOCRATIC", "DEMOCRATIC-FARMER-LABOR", "DEMOCRATIC-NPL", "DEMOCRATIC-NONPARTISAN LEAGUE"}
 REP = {"REPUBLICAN", "REPUBLICAN, LIBERTARIAN"}
+QUOTES = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
+
+
+def clean_name(name):
+    """Undo UTF-8 decoded twice ("OâHALLERAN") and straighten curly quotes."""
+    for wrong in ("latin-1", "cp1252"):
+        try:
+            name = name.encode(wrong).decode("utf-8")
+            break
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return name.translate(QUOTES)
 
 
 def load_results(cycle):
@@ -33,6 +50,7 @@ def load_results(cycle):
         keep &= ~raw[col].astype(str).str.upper().eq("TRUE")
     g = raw[keep].copy()
     g["district_id"] = g.state_po + "-" + g.district.str.zfill(2)
+    g["candidate"] = g.candidate.astype(str).map(clean_name)
     g["votes"] = pd.to_numeric(g.candidatevotes, errors="coerce").fillna(0)
     label = g.party.fillna("").str.upper()
 

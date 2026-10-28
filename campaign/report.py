@@ -162,9 +162,11 @@ def report(races, backtests, fc, games, media, mixes):
     belief_rows = []
     for b in backtests:
         d, safe_k = b["belief"][HALF_SATURATION], [b["belief"][h].multiplier["80%+"] for h in HALF_SATURATIONS]
-        belief_rows.append(
-            f"| {b['cycle']} | " + " / ".join(f"${1 / v:.0f}M" for v in d.per_million) + " | "
-            + " | ".join(f"{d.multiplier[band]:.1f}x on ${d.dollars[band] / 1e6:.1f}M" for band in ("under 20%", "80%+"))
+        belief_rows.append(  # a band where DCCC spent nothing has no marginal cost to read back
+            f"| {b['cycle']} | " + " / ".join(f"${1 / v:.0f}M" if d.dollars[band] > 0 else "none spent"
+                                             for band, v in d.per_million.items()) + " | "
+            + " | ".join(f"{d.multiplier[band]:.1f}x on ${d.dollars[band] / 1e6:.1f}M" if d.dollars[band] > 0
+                         else "no DCCC money" for band in ("under 20%", "80%+"))
             + f" | {min(safe_k):.1f}-{max(safe_k):.1f}x |")
     safe_k = {b["cycle"]: b["belief"][HALF_SATURATION].multiplier["80%+"] for b in backtests}
     k_lo, k_hi = min(safe_k, key=safe_k.get), max(safe_k, key=safe_k.get)
@@ -359,7 +361,7 @@ Outside 2018, most of it protects DCCC's own incumbents, consistent with its "Fr
 |---|---|---|---|---|
 {chr(10).join(belief_rows)}
 
-The multiplier is how many times as far a dollar would have to move the margin in that band, compared with DCCC's 20-80% races, for its split to be optimal. The same number also reads as how many times as much those seats would have to be worth to DCCC, or as a sign that the forecast understates their risk. This data can't tell the three apart. In 80%+ races it runs from {safe_k[k_lo]:.1f}x ({k_lo}) to {safe_k[k_hi]:.1f}x ({k_hi}). Unlike the gain, it doesn't depend on how strong party money is assumed to be: the strength cancels in the ratio. Moving the half-saturation from $1.65M to $16.5M changes no year's 80%+ multiplier by more than {k_spread:.1f}. The costs in the first column do scale with the assumed strength; only their ratios are free of it.
+The multiplier is how many times as far a dollar would have to move the margin in that band, compared with DCCC's 20-80% races, for its split to be optimal. The same number also reads as how many times as much those seats would have to be worth to DCCC, or as a sign that the forecast understates their risk. This data can't tell the three apart. Each band's cost is DCCC's dollars there divided by the expected seats that spending a little more in proportion would buy, a dollar-weighted average of the marginal effect rather than an average of each race's cost, so one small buy in a hopeless race can't dominate a band (a band holding nothing else can). In 80%+ races it runs from {safe_k[k_lo]:.1f}x ({k_lo}) to {safe_k[k_hi]:.1f}x ({k_hi}). Unlike the gain, it doesn't depend on how strong party money is assumed to be: the strength cancels in the ratio. Moving the half-saturation from $1.65M to $16.5M changes no year's 80%+ multiplier by more than {k_spread:.1f}. The costs in the first column do scale with the assumed strength; only their ratios are free of it.
 
 **Would a committee facing a strategic opponent spend differently?** Another explanation for defending "safe" seats is deterrence: a seat DCCC leaves at $0 is where NRCC's first dollars go furthest. That can be tested by solving the game. DCCC maximizes expected Democratic seats and NRCC minimizes them, each re-spending its real budget under the same spending curve. The payoff is concave for DCCC and convex for NRCC, so a stable equilibrium exists. Fictitious play finds it (each side best-responds to the average of the other's past choices).
 

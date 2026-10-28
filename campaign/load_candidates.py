@@ -9,7 +9,9 @@ Sinema ID in AZ-09). So each FEC candidate is matched to a name actually on
 the November ballot (MIT): the ballot surname must appear somewhere in the
 FEC name, after stripping accents ("SÁNCHEZ" vs "SANCHEZ"). Searching the
 whole FEC name, not just the part before the comma, catches married names
-("MATTELIN, CAITLIN RAE DRAPER" is the ballot's Caitlin Draper). FEC's party
+("MATTELIN, CAITLIN RAE DRAPER" is the ballot's Caitlin Draper).
+Apostrophes are dropped on both sides, because FEC spells the same kind of
+name both ways ("O'HALLERAN, TOM" but "DESPOSITO, ANTHONY P"). FEC's party
 code is sometimes unknown ("UNK"); a name match in the district is enough
 then. After redistricting FEC often keeps a member's old district number
 (Schweikert ran in AZ-01 in 2022 but is filed under AZ-06), so a nominee
@@ -56,7 +58,8 @@ def load_candidates(cycle, results):
     fec["district_id"] = fec.state + "-" + fec.district.str.zfill(2)
     fec["disbursements"] = pd.to_numeric(fec.disbursements, errors="coerce").fillna(0)
     columns = ["district_id", "party", "cand_id", "disbursements", "ici", "name"]
-    fec_ascii = fec.name.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii").str.upper()
+    fec_ascii = (fec.name.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii").str.upper()
+                 .str.replace("'", "", regex=False))         # FEC writes both O'HALLERAN and DESPOSITO
     fec["words"] = fec_ascii.str.findall(WORD).map(set)
     fec["initial"] = fec_ascii.str.split(",").str[1].str.strip().str[:1]
 
@@ -94,7 +97,7 @@ def load_candidates(cycle, results):
     ballot = pd.concat([results[["district_id", col]].explode(col).rename(columns={col: "ballot_name"}).assign(party=party)
                         for party, col in (("D", "d_names"), ("R", "r_names"))]).dropna()
     ballot_words = (ballot.ballot_name.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii")
-                    .str.upper().str.findall(WORD).map(lambda words: [w for w in words if w not in SUFFIXES] or [""]))
+                    .str.upper().str.replace("'", "", regex=False).str.findall(WORD).map(lambda words: [w for w in words if w not in SUFFIXES] or [""]))
     ballot["surname"], ballot["initial"] = ballot_words.str[-1], ballot_words.str[0].str[:1]
     ballot["state"] = ballot.district_id.str[:2]
 

@@ -14,11 +14,13 @@ the latest version of each report counts.
   June 1 and July 15 stands in. With that, 2012's matched nominees with
   June 30 money account for 99% of nominee spending.
 - Which committee: the candidate's principal or other authorized committee
-  for that cycle in FEC's candidate-committee links, whichever raised the
-  most. Not the candidate master file's principal committee: that is the
-  latest one, sometimes created after the election (Coffman's 2014
-  campaign filed under a committee later re-designated). Joint fundraising
-  committees are left out; they pass their money on to the campaign.
+  in FEC's candidate-committee links for that cycle or the next, whichever
+  raised the most by June 30. The next cycle's file catches committees FEC
+  links late (Gillen's 2024 campaign in NY-04 is linked only for 2026).
+  Not the candidate master file's principal committee: that is the latest
+  one, sometimes created after the election (Coffman's 2014 campaign filed
+  under a committee later re-designated). Joint fundraising committees are
+  left out; they pass their money on to the campaign.
 """
 
 from pathlib import Path
@@ -42,9 +44,10 @@ def load_early_money(cycle):
     latest = (pd.concat([july, stand_in]).sort_values(["end", "receipt_date", "file_number"])
               .drop_duplicates("committee_id", keep="last"))
 
-    links = pd.read_csv(RAW / f"ccl{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str, usecols=[0, 2, 3, 5],
-                        names=["cand_id", "fec_year", "committee_id", "designation"])
-    links = links[(links.fec_year == str(cycle)) & links.designation.isin(["P", "A"])]
+    files = [RAW / f"ccl{str(c)[2:]}.txt" for c in (cycle, cycle + 2)]
+    links = pd.concat(pd.read_csv(f, sep="|", header=None, dtype=str, usecols=[0, 3, 5],
+                                  names=["cand_id", "committee_id", "designation"]) for f in files if f.exists())
+    links = links[links.designation.isin(["P", "A"])].drop_duplicates(["cand_id", "committee_id"])
     money = latest.merge(links[["cand_id", "committee_id"]], on="committee_id").rename(columns=MONEY)
     money["own"] = money[OWN].fillna(0).sum(axis=1)
     money = money[["cand_id", "raised", "spent", "own"]].fillna(0)
