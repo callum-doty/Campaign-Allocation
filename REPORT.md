@@ -176,6 +176,8 @@ Averaged over 2016-2024, log loss is 0.087 at Sept 1 against 0.088 with the fina
 
 The national uncertainty shrinks through the fall, from a spread of 2.3 points at Sep 1 to 1.6 by Oct 25. The race forecasts don't get sharper on average, though: log loss stays between 0.087 and 0.091 at every checkpoint, against 0.088 with the final polls. Polls can swing and come back: the checkpoint furthest behind its own year's final-poll forecast is Oct 15, 2016 (log loss 0.073 against 0.052), when the generic ballot stood at +6.2, against a final average of +0.6. (Dollars out before Sept 1 are counted with the Sept 1 checkpoint.)
 
+![Through the fall](figures/11_through_the_fall.png)
+
 ## 5. Was DCCC's money well placed?
 
 Average gain from reallocating DCCC's budget over 2016-2024, in expected seats per cycle, by spending assumption:
@@ -224,7 +226,9 @@ Outside 2018, most of it protects DCCC's own incumbents, consistent with its "Fr
 | 2022 | 32% / 32% / 27% | 3% | +0.12 / +0.11 | 1.7x / 1.7x / 1.7x |
 | 2024 | 3% / 2% / 9% | 1% | +0.06 / +0.06 | 1.5x / 1.4x / 1.4x |
 
-Pooled, the share of DCCC's money in races the forecast calls 80%+ falls from 22% to 17%. The change is in 2018 and 2020, years when the final polls ended up more Democratic than a September forecaster, expecting the usual fall drift, would have guessed. Seats that look safe in hindsight looked less safe then. The gain from reallocating barely changes, and DCCC's remaining 80%+ money still implies a dollar there works 1.4-3.3 times as hard as one in a 20-80% race. Judged dollar by dollar, the share is 20%, between the two: later in the fall the polls and the outside money had mostly moved toward what the final-poll forecast says, and the multiplier is 1.4-3.0x. So judging DCCC by what it could see when it spent explains about 9% of its safe-seat spending pooled (20% if every dollar is judged at Sept 1), and not the rest.
+Pooled, the share of DCCC's money in races the forecast calls 80%+ falls from 22% to 17%. The change is in 2018 and 2020, years when the final polls ended up more Democratic than a September forecaster, expecting the usual fall drift, would have guessed. Seats that look safe in hindsight looked less safe then. The gain from reallocating barely changes, and DCCC's remaining 80%+ money still implies a dollar there works 1.4-3.3 times as hard as one in a 20-80% race. Judged dollar by dollar, the share is 20%, between the two: later in the fall the polls and the outside money had mostly moved toward what the final-poll forecast says, and the multiplier is 1.4-3.0x. So judging DCCC by what it could see when it spent explains about 9% of its safe-seat spending pooled (20% if every dollar is judged at Sept 1), and not the rest (figure 12).
+
+![Safe-seat share](figures/12_safe_seat_share.png)
 
 **What would DCCC have to believe?** The model's allocation stops where the last dollar in every funded race buys the same expected seats (apart from races at the 15% cap). DCCC's own allocation can be read backwards against that condition: at DCCC's actual spending, what does one more expected seat cost at the margin in each band, and how much harder would a dollar have to work in the costlier bands for DCCC's split to be optimal?
 
@@ -357,7 +361,11 @@ Prediction error of the miss (root mean square, points):
 
 Neither composite earns a place in the forecast. The basket's effect points the way the hypothesis says but is small: -0.07 points per point of basket inflation, about -1.0 in 2022, and shuffling the basket across elections gives one at least as negative 36% of the time. Credit and labor stress runs the opposite way (+0.39 per point; 76% of shuffles come out at least as negative). The two biggest shocks show why. In 2022 the basket rose 14.5%, the most of any year here, and Democrats, the president's party, ran 0.3 points behind their final polls. In 2020 credit and labor stress rose the most (+4.5 points), and Republicans, the president's party, ran 3.6 points ahead of their final polls. Knowing which party holds the White House doesn't help either: the polls' average lean alone (Democrats running 1.2 points behind their final polls) predicts best.
 
-**Against the September polls the answer is the same.** Neither composite earns a place there either: the basket's effect is -0.08 per point (39% of shuffles at least as negative) and stress's -0.08 (46%). The September polls miss by more than the final ones, 3.4 points against 2.4 leaving one out, and they lean: Democrats ran behind their Sept 1 polls in 9 of 12 years, by 3.0 points on average. Most of that is gone by the final polls (1.2 points), so the polls tend to drift toward Republicans through the fall. Knowing which party holds the White House or whether it's a midterm doesn't predict how far, and neither do the composites.
+![Household stress](figures/13_household_stress.png)
+
+**Against the September polls the answer is the same.** Neither composite earns a place there either: the basket's effect is -0.08 per point (39% of shuffles at least as negative) and stress's -0.08 (46%). The September polls miss by more than the final ones, 3.4 points against 2.4 leaving one out, and they lean: Democrats ran behind their Sept 1 polls in 9 of 12 years, by 3.0 points on average. Most of that is gone by the final polls (1.2 points), so the polls tend to drift toward Republicans through the fall. Knowing which party holds the White House or whether it's a midterm doesn't predict how far, and neither do the composites (figure 14).
+
+![Poll lean](figures/14_poll_lean.png)
 
 **Can a ballot built from economics replace the polls?** Predicting the House vote itself (root mean square error, points):
 

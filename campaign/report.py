@@ -22,11 +22,15 @@ from .plots.plot_battleground import plot_battleground
 from .plots.plot_calibration import plot_calibration
 from .plots.plot_channel_mix import plot_channel_mix
 from .plots.plot_equilibrium import plot_equilibrium
+from .plots.plot_household_stress import plot_household_stress
 from .plots.plot_map_changes import plot_map_changes
+from .plots.plot_poll_lean import plot_poll_lean
 from .plots.plot_pvi_vs_margin import plot_pvi_vs_margin
+from .plots.plot_safe_seat_share import plot_safe_seat_share
 from .plots.plot_seat_distribution import plot_seat_distribution
 from .plots.plot_seats_by_gb import plot_seats_by_gb
 from .plots.plot_spending_effect import plot_spending_effect
+from .plots.plot_through_fall import plot_through_fall
 from .spending_effect import HALF_SATURATION, SCALE_PTS, spending_effect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +54,10 @@ def report(races, backtests, fc, games, media, mixes, national):
     plot_seats_by_gb(fc, fig / "8_seats_by_gb.png")
     plot_seat_distribution(fc, fig / "9_seat_distribution.png")
     plot_battleground(fc, fig / "10_battleground.png")
+    plot_through_fall(backtests, fig / "11_through_the_fall.png")
+    plot_safe_seat_share(backtests, fig / "12_safe_seat_share.png")
+    plot_household_stress(national["table"], fig / "13_household_stress.png")
+    plot_poll_lean(national["table"], fig / "14_poll_lean.png")
 
     m, c = fc["model"], fc["model"]["coef"]
     data_rows = "\n".join(
@@ -451,6 +459,8 @@ Averaged over {years}, log loss is {ll_sept:.3f} at Sept 1 against {ll_final:.3f
 
 The national uncertainty shrinks through the fall, from a spread of {backtests[-1]['when_spent']['drift'][CHECKPOINTS[0]]['sd']:.1f} points at {label(CHECKPOINTS[0])} to {backtests[-1]['when_spent']['drift'][CHECKPOINTS[-1]]['sd']:.1f} by {label(CHECKPOINTS[-1])}. The race forecasts don't get sharper on average, though: log loss stays between {min(ll_at.values()):.3f} and {max(ll_at.values()):.3f} at every checkpoint, against {ll_final:.3f} with the final polls. Polls can swing and come back: the checkpoint furthest behind its own year's final-poll forecast is {label(worst[2])}, {worst[1]} (log loss {worst_b['scores'][worst[2]]['log_loss']:.3f} against {worst_b['scores']['with']['log_loss']:.3f}), when the generic ballot stood at {dated_ballot[(worst[1], worst[2])]:+.1f}, against a final average of {worst_b['races'].gb.iloc[0]:+.1f}. (Dollars out before Sept 1 are counted with the Sept 1 checkpoint.)
 
+![Through the fall](figures/11_through_the_fall.png)
+
 ## 5. Was DCCC's money well placed?
 
 Average gain from reallocating DCCC's budget over {years}, in expected seats per cycle, by spending assumption:
@@ -485,7 +495,9 @@ Outside 2018, most of it protects DCCC's own incumbents, consistent with its "Fr
 |---|---|---|---|---|
 {judged_rows}
 
-Pooled, the share of DCCC's money in races the forecast calls 80%+ falls from {safe_dccc:.0%} to {safe_sept:.0%}.{(' The change is in ' + shifted_text + (', years when' if len(shifted) > 1 else ', a year when') + " the final polls ended up more Democratic than a September forecaster, expecting the usual fall drift, would have guessed. Seats that look safe in hindsight looked less safe then.") if shifted and shifted_why else ''} The gain from reallocating barely changes, and DCCC's remaining 80%+ money still implies a dollar there works {np.nanmin(sept_k):.1f}-{np.nanmax(sept_k):.1f} times as hard as one in a 20-80% race. Judged dollar by dollar, the share is {safe_spent:.0%}, between the two: later in the fall the polls and the outside money had mostly moved toward what the final-poll forecast says, and the multiplier is {np.nanmin(spent_k):.1f}-{np.nanmax(spent_k):.1f}x. So judging DCCC by what it could see when it spent explains about {1 - safe_spent / safe_dccc:.0%} of its safe-seat spending pooled ({1 - safe_sept / safe_dccc:.0%} if every dollar is judged at Sept 1), and not the rest.
+Pooled, the share of DCCC's money in races the forecast calls 80%+ falls from {safe_dccc:.0%} to {safe_sept:.0%}.{(' The change is in ' + shifted_text + (', years when' if len(shifted) > 1 else ', a year when') + " the final polls ended up more Democratic than a September forecaster, expecting the usual fall drift, would have guessed. Seats that look safe in hindsight looked less safe then.") if shifted and shifted_why else ''} The gain from reallocating barely changes, and DCCC's remaining 80%+ money still implies a dollar there works {np.nanmin(sept_k):.1f}-{np.nanmax(sept_k):.1f} times as hard as one in a 20-80% race. Judged dollar by dollar, the share is {safe_spent:.0%}, between the two: later in the fall the polls and the outside money had mostly moved toward what the final-poll forecast says, and the multiplier is {np.nanmin(spent_k):.1f}-{np.nanmax(spent_k):.1f}x. So judging DCCC by what it could see when it spent explains about {1 - safe_spent / safe_dccc:.0%} of its safe-seat spending pooled ({1 - safe_sept / safe_dccc:.0%} if every dollar is judged at Sept 1), and not the rest (figure 12).
+
+![Safe-seat share](figures/12_safe_seat_share.png)
 
 **What would DCCC have to believe?** The model's allocation stops where the last dollar in every funded race buys the same expected seats (apart from races at the 15% cap). DCCC's own allocation can be read backwards against that condition: at DCCC's actual spending, what does one more expected seat cost at the margin in each band, and how much harder would a dollar have to work in the costlier bands for DCCC's split to be optimal?
 
@@ -580,7 +592,11 @@ Prediction error of the miss (root mean square, points):
 
 {verdict}. The basket's effect {direction(cb['coef']['c'])} but is small: {cb['coef']['c']:+.2f} points per point of basket inflation, about {cb['coef']['c'] * nt.basket[yb]:+.1f} in {yb}, and shuffling the basket across elections gives one at least as negative {cb['p']:.0%} of the time. Credit and labor stress {direction(cs['coef']['c'])} ({cs['coef']['c']:+.2f} per point; {cs['p']:.0%} of shuffles come out at least as negative). The two biggest shocks show why. In {yb} the basket rose {nt.basket[yb]:.1f}%, the most of any year here, and {against_polls(yb)}. In {ys} credit and labor stress rose the most ({nt.stress[ys]:+.1f} points), and {against_polls(ys)}.{lean_text}
 
-**Against the September polls the answer is the same.** {('Neither composite earns a place there either' if not sept_passed else 'The ' + ' and '.join(sept_passed) + (' earns' if len(sept_passed) == 1 else ' earn') + ' a place there')}: the basket's effect is {sb['coef']['c']:+.2f} per point ({sb['p']:.0%} of shuffles at least as negative) and stress's {ss['coef']['c']:+.2f} ({ss['p']:.0%}). The September polls miss by more than the final ones, {sept['constant']['loo']:.1f} points against {national['constant']['loo']:.1f} leaving one out, and they lean: Democrats ran behind their Sept 1 polls in {sept_over} of {nat_n} years, by {abs(nt.miss_sept.mean()):.1f} points on average. Most of that is gone by the final polls ({abs(nt.miss.mean()):.1f} points), so the polls tend to drift toward Republicans through the fall. Knowing which party holds the White House or whether it's a midterm doesn't predict how far, and neither do the composites.
+![Household stress](figures/13_household_stress.png)
+
+**Against the September polls the answer is the same.** {('Neither composite earns a place there either' if not sept_passed else 'The ' + ' and '.join(sept_passed) + (' earns' if len(sept_passed) == 1 else ' earn') + ' a place there')}: the basket's effect is {sb['coef']['c']:+.2f} per point ({sb['p']:.0%} of shuffles at least as negative) and stress's {ss['coef']['c']:+.2f} ({ss['p']:.0%}). The September polls miss by more than the final ones, {sept['constant']['loo']:.1f} points against {national['constant']['loo']:.1f} leaving one out, and they lean: Democrats ran behind their Sept 1 polls in {sept_over} of {nat_n} years, by {abs(nt.miss_sept.mean()):.1f} points on average. Most of that is gone by the final polls ({abs(nt.miss.mean()):.1f} points), so the polls tend to drift toward Republicans through the fall. Knowing which party holds the White House or whether it's a midterm doesn't predict how far, and neither do the composites (figure 14).
+
+![Poll lean](figures/14_poll_lean.png)
 
 **Can a ballot built from economics replace the polls?** Predicting the House vote itself (root mean square error, points):
 
