@@ -1,7 +1,8 @@
 """
 Score one completed cycle strictly forward in time: fit the baseline on
 every EARLIER cycle, forecast this one (each race, and the seat total with
-its shared national error), then ask how DCCC's own spending compares with
+its shared national error, also with that error's size treated as known
+for comparison), then ask how DCCC's own spending compares with
 the best allocation of the same budget under the spending assumption,
 across a grid of assumptions. The same forecast without the incumbent
 history features (first-term flags, last cycle's overperformance) is scored
@@ -65,8 +66,11 @@ def backtest(cycle, races):
     gain, test["model_dccc"] = grid[(SCALE_PTS, HALF_SATURATION)]
     break_even = {half: break_even_scale(test.mu, model["sigma"], test.dccc, cap, half) for half in HALF_SATURATIONS}
     belief = {half: implied_belief(test.mu, model["sigma"], test.dccc, half) for half in HALF_SATURATIONS}
-    seats = seat_distribution(test.mu, model, seats_needed(cycle, test.district_id), test.district_id.str[:2])
-    seats["actual"] = int((test.margin > 0).sum())
+    need, states = seats_needed(cycle, test.district_id), test.district_id.str[:2]
+    seats = seat_distribution(test.mu, model, need, states)
+    seats_known = seat_distribution(test.mu, {**model, "national_df": None}, need, states)
+    seats["actual"] = seats_known["actual"] = int((test.margin > 0).sum())
     return {"cycle": cycle, "model": model, "races": test, "calibration": calibration,
             "brier": scores["with"]["brier"], "scores": scores, "budget": budget, "gain": gain,
-            "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats}
+            "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats,
+            "seats_known_sigma": seats_known}

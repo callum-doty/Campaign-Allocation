@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.stats import chi2
 
 from .backtest import HALF_SATURATIONS, SCALES
 from .break_even import MAX_SCALE
@@ -88,6 +89,10 @@ def report(races, backtests, fc, games, media, mixes):
                             f"{safe.dccc[safe.status == 'D incumbent'].sum() / max(safe.dccc.sum(), 1):.0%} | "
                             f"{len(lost)}{': ' + ', '.join(lost) if lost else ''} |")
     s26 = fc["seats"]
+    nat_lo, nat_hi = (m["sigma_national"] * np.sqrt(m["national_df"] / chi2.ppf(q, m["national_df"])) for q in (0.95, 0.05))
+    known = [b["seats_known_sigma"] for b in backtests]
+    covered_known = sum(k["p10"] <= k["actual"] <= k["p90"] for k in known)
+    width, width_known = (np.mean([s["p90"] - s["p10"] for s in group]) for group in ([b["seats"] for b in backtests], known))
     changed = set(maps[maps.changed].district_id)
     moved = fc["races"][fc["races"].district_id.isin(changed) & (fc["races"].status != "Open")]
     in_play_moved = moved[moved.p.between(0.2, 0.8) | moved.p_as_open.between(0.2, 0.8)].sort_values("p")
@@ -274,7 +279,9 @@ P(Democrat wins race i) = Phi(expected margin_i / sigma)
 
 Each point of PVI is worth {c['pvi']:.1f} points of margin. Having the Democrat rather than the Republican as the incumbent is worth {c['d_incumbent']:.0f} points, {-c['fresh_d']:.0f} less for a first-term Democrat; first-term Republicans show no such gap ({c['fresh_r']:+.1f}). About a fifth of how far a seat's party ran ahead of its lean last time carries into the next election ({c['over_inc']:.2f} with the incumbent running again, {c['over_open']:.2f} for an open seat). The generic ballot is fixed at a 1:1 pass-through rather than estimated: with one national value per cycle, a fitted slope would mostly chase polling misses. sigma is the residual spread, so it includes those misses; that is the right uncertainty for a forecast made before the votes are counted.
 
-**National, state and district error.** Part of every race's error is shared: in a year the polls miss, they miss everywhere at once, and races in the same state also miss together. Splitting it out, sigma^2 = sigma_national^2 + sigma_state^2 + sigma_district^2. sigma_national = {m['sigma_national']:.1f} points is the spread of each cycle's average miss. sigma_state = {m['sigma_state']:.1f} is how much each state's average miss varies beyond what its number of races explains, and sigma_district = {m['sigma_district']:.1f} is the rest. A single race's probability needs only the total. The seat total needs the split: conditional on the national and state misses, races are independent, and averaging over both gives the seat distribution in section 6.
+**National, state and district error.** Part of every race's error is shared: in a year the polls miss, they miss everywhere at once, and races in the same state also miss together. Splitting it out, sigma^2 = sigma_national^2 + sigma_state^2 + sigma_district^2. sigma_national = {m['sigma_national']:.1f} points is the spread of each cycle's average miss. sigma_state = {m['sigma_state']:.1f} is how much each state's average miss varies beyond what its number of races explains, and sigma_district = {m['sigma_district']:.1f} is the rest. A single race's probability needs only the total. The seat total needs the split: conditional on the national and state misses, races are independent, and averaging over both gives the seat distribution in section 7.
+
+sigma_national rests on only {len(m['cycles'])} cycle averages, so it is itself uncertain: anywhere from {nat_lo:.1f} to {nat_hi:.1f} points is plausible (90% range). The seat total doesn't treat it as known. Averaging a normal national miss over that uncertainty gives a Student t with {m['national_df']} degrees of freedom, so a big miss is more likely than the point estimate alone says, and the fewer cycles behind the estimate, the more so. Each race's own probability, and so the allocation, still uses the point estimate.
 
 ![PVI vs margin](figures/1_pvi_vs_margin.png)
 
@@ -319,13 +326,13 @@ Averaged over {years}, log loss is {ll_mean['hindsight']:.3f} with hindsight and
 
 ![Calibration](figures/3_calibration.png)
 
-**The seat total, with the national and state errors shared across races:**
+**The seat total, with the national and state errors shared across races and the size of the national error uncertain:**
 
 | Year | Expected D seats | 80% range | Actual | Needed for majority | P(D majority) | Majority won by |
 |---|---|---|---|---|---|---|
 {chr(10).join(seat_rows)}
 
-The 80% range held the actual result in {covered} of {len(backtests)} years, and the favorite for the majority won in {calls_right} of {len(backtests)}. Outside the range: {missed_text}. ("Needed" counts only modeled races; seats outside the model are credited by their partisan lean.)
+The 80% range held the actual result in {covered} of {len(backtests)} years, and the favorite for the majority won in {calls_right} of {len(backtests)}. Outside the range: {missed_text}. ("Needed" counts only modeled races; seats outside the model are credited by their partisan lean.) Each backtest's national error rests only on the cycles before it: {len(backtests[0]['model']['cycles'])} for {backtests[0]['cycle']}, {len(backtests[-1]['model']['cycles'])} for {backtests[-1]['cycle']}. Treating its size as known instead, the 80% ranges average {width_known:.0f} seats wide rather than {width:.0f} and hold the result in {covered_known} of {len(backtests)} years. The fatter tails also pull each race a little toward even, so expected seats here can differ by a seat or two from the race-by-race total in the first table.
 
 ## 5. Was DCCC's money well placed?
 
@@ -407,7 +414,7 @@ Forecast from a baseline fit on all {m['cycles'][0]}-{m['cycles'][-1]} races, at
 |---|---|---|---|
 | Expected Democratic seats | {seats[round(gb - 3, 1)]:.0f} | {seats[round(gb, 1)]:.0f} | {seats[round(gb + 3, 1)]:.0f} |
 
-Averaging over the national and state errors instead of fixing them gives the full distribution. The model puts Democrats at {s26['mean']:.0f} seats among modeled races, an 80% range of {s26['p10']}-{s26['p90']}, and a {s26['p_majority']:.0%} chance of reaching the {s26['need']} they need for a majority. Treat that as optimistic. The national error is estimated from only seven elections, and normal tails understate big misses (section 4). A 4-point polling miss like 2020's would leave Democrats near {seats[round(gb - 4, 1)]:.0f} seats.
+Averaging over the national and state errors instead of fixing them gives the full distribution. The model puts Democrats at {s26['mean']:.0f} seats among modeled races, an 80% range of {s26['p10']}-{s26['p90']}, and a {s26['p_majority']:.0%} chance of reaching the {s26['need']} they need for a majority. That already allows for the size of a national miss being estimated from only {len(m['cycles'])} elections (section 3); treating it as known would give {fc['seats_known_sigma']['p_majority']:.0%}. It is still likely optimistic: the generic ballot here is the final average, not one a September decision could see, and the state and district errors are still assumed normal. A 4-point polling miss like 2020's would leave Democrats near {seats[round(gb - 4, 1)]:.0f} seats.
 
 ![Seat distribution](figures/9_seat_distribution.png)
 
@@ -428,10 +435,10 @@ Individual races move {bound_swing.min() * 100:.0f}-{bound_swing.max() * 100:.0f
 - **The spending effect is assumed.** The allocation results depend on it, and public data can't pin it down. Section 5 adds two readings that need less of it: how strong it would have to be for reallocating to matter, and what DCCC's own allocation implies. Both still assume the same curve in every race, and that each party's money moves the margin independently of the other's.
 - **Likely R seats are overrated**, at about {pooled[pooled.tier == 'Likely R'].p.mean():.0%} predicted against {(pooled[pooled.tier == 'Likely R'].margin > 0).mean():.0%} actual. Most of the gap is 2020 ({lr20.p.mean():.0%} predicted, {(lr20.margin > 0).mean():.0%} actual), the national polling miss again, rather than a problem in deep-red seats specifically.
 - **The incumbency effect has shrunk.** Fit on {first}-2016 alone, having the Democrat rather than the Republican as the incumbent is worth {early['d_incumbent']:.0f} points; on 2018-{last}, {late['d_incumbent']:.0f}. The model pools every cycle and gives {fc['cycle']} incumbents {c['d_incumbent']:.0f} points, more than recent cycles alone would. Weighting recent cycles more was tested while building this repo and forecast worse forward in time: the fits got noisy and overconfident. The first-term flag captures the part of the decline that can be predicted.
-- **The incumbency effect is learned from incumbents running in their own districts**, so it is probably too large for members on redrawn {fc['cycle']} maps (bounds in section 6).
+- **The incumbency effect is learned from incumbents running in their own districts**, so it is probably too large for members on redrawn {fc['cycle']} maps (bounds in section 7).
 - **{fc['cycle']} nominees are the top spenders reported so far** until official results name them, and their money counts through June 30, as in past cycles. Where the top spender had no House report through June 30 (a Senate run, a campaign that ended, a primary loser), the actual nominees were looked up by hand, with sources, in [`data/nominees_{fc['cycle']}.csv`](data/nominees_{fc['cycle']}.csv): {len(hand_checked)} districts, {', '.join(hand_checked)}. Other districts' top spenders were not checked one by one.{(' Still without a House report through June 30: ' + ', '.join(no_july.district_id) + '; that side counts as $0' + ('. ' + misjudged + (' are' if len(no_july_close) > 1 else ' is') + ' competitive and may be misjudged as a result.' if len(no_july_close) else '.')) if len(no_july) else ''}
 - **The generic ballot is the final pre-election average.** The money feature now uses only what a forecaster deciding on Sept 1 could see, but the national environment doesn't yet: a September decision would work from an earlier, less accurate average.
 - **TV-market data starts with the 2022 maps**, so market costs cover the 2022 and 2024 backtests only. Channels come from filers' own purpose descriptions; some say only "MEDIA" and stay unspecified.
-- **The national error is estimated from seven elections** and assumed normal, so big polling misses are likely more common than the seat distribution implies.
+- **The national error is estimated from {len(m['cycles'])} elections.** The seat totals allow for that (a Student t rather than a normal), but each race's own probability, and so the allocation and the backtest scores, still treats its size as known.
 """
     (ROOT / "REPORT.md").write_text(text)

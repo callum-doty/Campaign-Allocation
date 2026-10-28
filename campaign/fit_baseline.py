@@ -25,7 +25,8 @@ much each state's average residual varies beyond what its number of races
 explains: E[n_g * mean_g^2] = n_g * sigma_state^2 + sigma_district^2 over
 state-cycle groups g. Each race's own win probability only needs the total;
 the split matters for the seat total, because a miss moves many races at
-once.
+once. sigma_national rests on one average per cycle, so national_df =
+cycles - 1 says how far to trust it (seat_distribution.py).
 
 Uncontested races (|margin| >= 80) carry no information about competition
 and are left out of the fit.
@@ -41,7 +42,7 @@ UNCONTESTED = 80
 
 def fit_baseline(races, features=FEATURES):
     """{'coef': {name: value}, 'sigma', 'sigma_national', 'sigma_state',
-    'sigma_district', 'n', 'cycles'}"""
+    'sigma_district', 'national_df', 'n', 'cycles'}"""
     train = races[races.margin.abs() < UNCONTESTED]
     X = np.column_stack([np.ones(len(train))] + [train[f].to_numpy(float) for f in features])
     y = (train.margin - train.gb).to_numpy(float)
@@ -58,4 +59,5 @@ def fit_baseline(races, features=FEATURES):
     return {"coef": dict(zip(["intercept"] + features, coef)), "sigma": sigma,
             "sigma_national": national, "sigma_state": state,
             "sigma_district": float(np.sqrt(sigma ** 2 - national ** 2 - state ** 2)),
+            "national_df": train.cycle.nunique() - 1,
             "n": len(y), "cycles": sorted(int(c) for c in train.cycle.unique())}

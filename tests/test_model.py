@@ -64,6 +64,7 @@ def test_error_splits_into_national_state_and_district():
     races["margin"] += state.map(dict(zip(state.unique(), state_shocks)))
     model = fit_baseline(races)
     assert model["sigma_national"] == pytest.approx(np.std(list(shocks.values()), ddof=1), abs=0.5)
+    assert model["national_df"] == len(shocks) - 1
     assert model["sigma_state"] == pytest.approx(np.std(state_shocks, ddof=1), abs=0.5)
     assert model["sigma_district"] == pytest.approx(6, rel=0.1)
     assert model["sigma"] ** 2 == pytest.approx(
@@ -89,6 +90,18 @@ def test_state_error_widens_the_seat_total_but_not_its_mean():
     assert b["mean"] == pytest.approx(a["mean"], abs=1e-6)
     assert b["p90"] - b["p10"] > a["p90"] - a["p10"]
     assert seat_distribution(mu, national, need=21)["p10"] == a["p10"]     # no state error: grouping is irrelevant
+
+
+def test_uncertain_national_error_fattens_the_tails():
+    mu = np.linspace(-15, 25, 41)                                          # Democrats favored for the majority
+    known = {"sigma_national": 3.0, "sigma_district": 7.0}
+    few, many = seat_distribution(mu, {**known, "national_df": 3}, need=21), seat_distribution(mu, known, need=21)
+    assert few["p90"] - few["p10"] > many["p90"] - many["p10"]
+    assert few["p_majority"] < many["p_majority"]
+    lots = seat_distribution(mu, {**known, "national_df": 10_000}, need=21)
+    assert lots["p_majority"] == pytest.approx(many["p_majority"], abs=1e-3)   # a t with many cycles is the normal
+    cauchy = seat_distribution(mu, {**known, "national_df": 1}, need=21)
+    assert np.isfinite(cauchy["mean"]) and cauchy["pmf"].sum() == pytest.approx(1)
 
 
 def test_generic_ballot_is_a_one_for_one_swing():
