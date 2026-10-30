@@ -15,7 +15,9 @@ The incumbency effect is pooled over every cycle although it has shrunk
 (by more than half after 2016). Weighting recent cycles more was tested and
 forecast worse forward in time: the fits get noisy and overconfident. The
 first-term flags (fresh_d, fresh_r) capture the part of the decline that
-can be predicted, the wave-year freshmen who run well behind it.
+can be predicted, the wave-year freshmen who run well behind it. A version
+where only incumbency drifts from cycle to cycle, with a term for redrawn
+lines, is scored alongside in the backtest (fit_drift.py).
 
 sigma splits into three parts, sigma^2 = sigma_national^2 + sigma_state^2 +
 sigma_district^2: a national miss shared by every race in a cycle (the
@@ -47,8 +49,14 @@ def fit_baseline(races, features=FEATURES):
     X = np.column_stack([np.ones(len(train))] + [train[f].to_numpy(float) for f in features])
     y = (train.margin - train.gb).to_numpy(float)
     coef, *_ = np.linalg.lstsq(X, y, rcond=None)
-    resid = pd.Series(y - X @ coef)
-    sigma = float(np.sqrt(resid @ resid / (len(y) - X.shape[1])))
+    return {"coef": dict(zip(["intercept"] + features, coef)), **split_error(train, y - X @ coef, X.shape[1])}
+
+
+def split_error(train, resid, n_params):
+    """{'sigma', 'sigma_national', 'sigma_state', 'sigma_district', 'national_df',
+    'n', 'cycles'} from the residuals of a fit with n_params terms on `train`."""
+    resid = pd.Series(resid)
+    sigma = float(np.sqrt(resid @ resid / (len(resid) - n_params)))
     cycle = train.cycle.to_numpy()
     national = float(resid.groupby(cycle).mean().std())
     within = resid - resid.groupby(cycle).transform("mean")
@@ -56,8 +64,7 @@ def fit_baseline(races, features=FEATURES):
     n, means = groups.size(), groups.mean()
     district_var = float(((within - groups.transform("mean")) ** 2).sum() / (len(within) - len(n)))
     state = float(np.sqrt(max(((n * means ** 2).sum() - len(n) * district_var) / n.sum(), 0.0)))
-    return {"coef": dict(zip(["intercept"] + features, coef)), "sigma": sigma,
-            "sigma_national": national, "sigma_state": state,
+    return {"sigma": sigma, "sigma_national": national, "sigma_state": state,
             "sigma_district": float(np.sqrt(sigma ** 2 - national ** 2 - state ** 2)),
             "national_df": train.cycle.nunique() - 1,
-            "n": len(y), "cycles": sorted(int(c) for c in train.cycle.unique())}
+            "n": len(resid), "cycles": sorted(int(c) for c in train.cycle.unique())}

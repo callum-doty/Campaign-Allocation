@@ -15,9 +15,11 @@ from .compare_maps import compare_maps
 from .fit_baseline import fit_baseline
 from .household_index import STRESS
 from .dated_forecast import CHECKPOINTS
+from .fit_close import CLOSE
 from .load_expenditures import load_expenditures
 from .media_cost import GAMMAS
 from .national_test import PASS_P
+from .predict_margin import predict_margin
 from .plots.plot_allocation import plot_allocation
 from .plots.plot_battleground import plot_battleground
 from .plots.plot_calibration import plot_calibration
@@ -109,11 +111,11 @@ def report(races, backtests, fc, games, media, mixes, national):
     width, width_known = (np.mean([s["p90"] - s["p10"] for s in group]) for group in ([b["seats"] for b in backtests], known))
     changed = set(maps[maps.changed].district_id)
     moved = fc["races"][fc["races"].district_id.isin(changed) & (fc["races"].status != "Open")]
-    in_play_moved = moved[moved.p.between(0.2, 0.8) | moved.p_as_open.between(0.2, 0.8)].sort_values("p")
-    bound_rows = "\n".join(f"| {r.district_id} | {r.status} | {r.pvi:+.1f} | {r.p:.0%} | {r.p_as_open:.0%} |"
-                           for r in in_play_moved.itertuples())
-    bound_swing = (in_play_moved.p_as_open - in_play_moved.p).abs()
-    bound_net = (moved.p_as_open - moved.p).sum()
+    in_play_moved = moved[moved.p.between(0.2, 0.8) | moved.p_drift.between(0.2, 0.8)].sort_values("p")
+    moved_rows = "\n".join(f"| {r.district_id} | {r.status} | {r.pvi:+.1f} | {r.p:.0%} | {r.p_drift:.0%} | "
+                           f"{r.p_drift_old_lines:.0%} |" for r in in_play_moved.itertuples())
+    redraw_net = (moved.p_drift - moved.p_drift_old_lines).sum()
+    s26_drift = fc["seats_drift"]
     calls_right = sum((b["seats"]["p_majority"] > 0.5) == (b["seats"]["actual"] >= b["seats"]["need"]) for b in backtests)
     missed = [b for b in backtests if not b["seats"]["p10"] <= b["seats"]["actual"] <= b["seats"]["p90"]]
     missed_text = "; ".join(f"{b['cycle']}, when Democrats won {b['seats']['actual']} against a range of "
@@ -190,7 +192,82 @@ def report(races, backtests, fc, games, media, mixes, national):
     ll_change = {b["cycle"]: b["scores"]["with"]["log_loss"] - b["scores"]["without"]["log_loss"] for b in backtests}
     helped = sorted(ll_change, key=ll_change.get)[:2]
     hurt = [c for c in sorted(ll_change) if ll_change[c] > 0.001]
-    ll_mean = {k: np.mean([b["scores"][k]["log_loss"] for b in backtests]) for k in ("without", "with", "hindsight")}
+    ll_mean = {k: np.mean([b["scores"][k]["log_loss"] for b in backtests])
+               for k in ("without", "with", "drift", "close", "hybrid", "spread", "hindsight")}
+
+    # incumbency that drifts from cycle to cycle, with a term for redrawn lines (fit_drift.py)
+    def margin_error(r, col):    # root mean square error of the margin in contested races
+        r = r[r.margin.abs() < 80]
+        return float(np.sqrt(np.mean((r.margin - r[col]) ** 2)))
+
+    def term(inc):
+        return "not identified yet" if inc["redrawn"] is None else f"{inc['redrawn']:+.1f} ({inc['redrawn_se']:.1f})"
+    drift_rows = "\n".join(
+        f"| {b['cycle']} | {b['model']['coef']['d_incumbent']:.1f} / {b['drift']['incumbency']['c_next']:.1f} | "
+        f"{b['scores']['with']['log_loss']:.3f} / {b['scores']['drift']['log_loss']:.3f} | "
+        f"{b['scores']['with']['brier']:.3f} / {b['scores']['drift']['brier']:.3f} | "
+        f"{margin_error(b['races'], 'mu'):.1f} / {margin_error(b['races'], 'mu_drift'):.1f} | "
+        f"{term(b['drift']['incumbency'])} |" for b in backtests)
+    drift_worse = sum(b["scores"]["drift"]["log_loss"] > b["scores"]["with"]["log_loss"] for b in backtests)
+    error_mean = {col: np.mean([margin_error(b["races"], col) for b in backtests]) for col in ("mu", "mu_drift")}
+    contested = pooled[pooled.margin.abs() < 80]
+    national_miss = {col: (contested.margin - contested[col]).groupby(contested.cycle).mean() for col in ("mu", "mu_drift")}
+    incs = contested[contested.status != "Open"]
+    incs = incs.assign(sign=np.where(incs.status == "D incumbent", 1, -1))
+    # + = incumbent ran ahead of it, beyond the year's national miss (close races have more Republican incumbents)
+    ahead = {col: (incs.margin - incs[col] - incs.cycle.map(national_miss[col])) * incs.sign for col in ("mu", "mu_drift")}
+    near, toss_up = incs.mu.abs() < 15, incs.mu.abs() < 5
+
+    # a different incumbency edge where the pooled forecast is close (fit_close.py)
+    close_rows = "\n".join(
+        f"| {b['cycle']} | {b['n_close']} | {b['close']['coef']['inc_close']:+.1f} | "
+        f"{b['scores']['with']['log_loss']:.3f} / {b['scores']['hybrid']['log_loss']:.3f} / {b['scores']['close']['log_loss']:.3f} | "
+        f"{b['scores_close']['with']['log_loss']:.3f} / {b['scores_close']['hybrid']['log_loss']:.3f} / "
+        f"{b['scores_close']['close']['log_loss']:.3f} |" for b in backtests)
+    q = [b["close"]["coef"]["inc_close"] for b in backtests]
+    q_way = "larger" if min(q) > 0 else "smaller" if max(q) < 0 else "sometimes larger and sometimes smaller"
+    ll_in_close = {k: np.mean([b["scores_close"][k]["log_loss"] for b in backtests]) for k in ("with", "hybrid", "close")}
+    hybrid_worse = sum(b["scores_close"]["hybrid"]["log_loss"] > b["scores_close"]["with"]["log_loss"] for b in backtests)
+    on_new = incs.inc_redrawn != 0
+    partial = incs.cycle.isin([b["cycle"] for b in backtests if 0 < (b["races"].inc_redrawn != 0).mean() < 0.5])
+    di = fc["drift"]["incumbency"]
+    c_by_cycle = ", ".join(f"{c:.0f} in {cy}" for cy, c in zip(di["cycles"], di["c"]))
+    early_terms = [b["drift"]["incumbency"]["redrawn"] for b in backtests if b["drift"]["incumbency"]["redrawn"] is not None]
+    early_ses = [b["drift"]["incumbency"]["redrawn_se"] for b in backtests if b["drift"]["incumbency"]["redrawn"] is not None]
+    first_term_year = next(b["cycle"] for b in backtests if b["drift"]["incumbency"]["redrawn"] is not None)
+    partial_years = sorted(int(c) for c in incs.cycle[partial].unique())
+    n_last_redrawn = int((races[last].inc_redrawn != 0).sum())
+    done_inc = pd.concat([r for cy, r in races.items() if cy <= last]).query("status != 'Open'")
+    share_new = float((done_inc.inc_redrawn != 0).mean())
+
+    def ran(x):                  # how an incumbent ran against a forecast
+        return f"{abs(x):.1f} points {'behind' if x < 0 else 'ahead of'}"
+
+    # each race's error size set by its features (fit_spread.py)
+    def size(fit, t):            # how much a term widens the state and district error, per unit
+        return "not identified yet" if t not in fit["g"] else f"{np.expm1(fit['g'][t] / 2):+.0%} ({fit['g_se'][t] / 2:.0%})"
+    spread_rows = "\n".join(
+        f"| {b['cycle']} | {b['scores']['with']['log_loss']:.3f} / {b['scores']['spread']['log_loss']:.3f} | "
+        f"{b['scores']['with']['brier']:.3f} / {b['scores']['spread']['brier']:.3f} | "
+        f"{b['model']['sigma']:.1f} / {b['races'].sigma_spread.min():.1f}-{b['races'].sigma_spread.max():.1f} | "
+        f"{size(b['spread'], 'open_seat')} | {size(b['spread'], 'redrawn_inc')} | {size(b['spread'], 'lean')} |"
+        for b in backtests)
+    term_names = {"open_seat": "open seats", "redrawn_inc": "redrawn lines", "lean": "lean"}
+    spread_better = sum(b["scores"]["spread"]["log_loss"] < b["scores"]["with"]["log_loss"] for b in backtests)
+    spread_clear = [(b["cycle"], t) for b in backtests for t in b["spread"]["g"]
+                    if abs(b["spread"]["g"][t]) > 2 * b["spread"]["g_se"][t]]
+    fs = fc["spread"]
+    seen = pd.concat([r for cy, r in races.items() if cy <= last], ignore_index=True)
+    seen = seen[seen.margin.abs() < 80]
+    miss = seen.margin - predict_margin(seen, m)
+    miss = miss - miss.groupby(seen.cycle).transform("mean")          # beyond each year's national miss
+    kind = np.where(seen.open_seat == 1, "open", np.where(seen.inc_redrawn != 0, "new", "old"))
+    miss_by = (miss ** 2).groupby(kind).mean() ** 0.5
+    by_year = ((miss ** 2).groupby([seen.cycle, kind]).mean() ** 0.5).unstack()
+    year_miss = (miss ** 2).groupby(seen.cycle).mean() ** 0.5
+    noisiest = int(year_miss.idxmax())
+    noisy_share = float((seen.cycle[kind == "new"] == noisiest).mean())
+    mixed_years = by_year.dropna(subset=["new", "old"])
 
     # the same forecast with each side's money over the whole election (hindsight) instead of what Sept 1 could see
     money_rows = "\n".join(
@@ -343,7 +420,7 @@ Generated by `python run.py` on {dt.date.today().isoformat()}. Every number belo
 
 ## Summary
 
-- **The forecast holds up out of sample.** Each year from {years} was predicted using only earlier elections. Brier scores run from {min(b['brier'] for b in backtests):.3f} to {max(b['brier'] for b in backtests):.3f}, and predicted and actual win rates match by tier from Safe D through Lean R (figure 3).
+- **The forecast holds up out of sample.** Each year from {years} was predicted using only earlier elections. Brier scores run from {min(b['brier'] for b in backtests):.3f} to {max(b['brier'] for b in backtests):.3f}, and predicted and actual win rates match by tier from Safe D through Lean R (figure 3). Letting the incumbency effect drift from cycle to cycle gets margins closer but calls winners worse in {drift_worse} of {len(backtests)} years, because the edge shrank less in close races; giving incumbents in close races a smaller edge than the rest calls winners worse too. Incumbents on redrawn lines haven't run behind those on old lines or missed by more, so the forecast doesn't discount them (sections 4 and 7).
 - **DCCC's own spending was close to the best use of the same money, if you trust the polls.** At the default spending assumption, reallocating DCCC's budget would have gained {min(b['gain'] for b in backtests):+.2f} to {max(b['gain'] for b in backtests):+.2f} expected seats per cycle (average {mean_gain:+.2f}). Even the most generous assumption tested gains at most {max(max(b['grid'].values()) for b in backtests):+.2f}. The main difference: DCCC put {safe_dccc:.0%} of its money into races already 80%+ likely to go Democratic, {safe_inc:.0%} of it protecting its own incumbents. In 2020 that caution was justified: {lost_2020} of those "safe" seats were lost anyway. And part of what looks like over-caution was the forecast's error, not DCCC's. First-term members, many elected in a wave, run well behind the usual incumbency edge. Flagging them, and carrying over each seat's last result, cuts the share of DCCC's 2020 money the forecast calls safe from {safe_20['p_without']:.0%} to {safe_20['p']:.0%} (figure 4, sections 4-5).
 - **Two readings that don't assume how strong party money is.** Reallocating DCCC's budget gains a full seat only if its first $1M in a race moves the margin {min(first_needed):.1f}-{max(first_needed):.1f} points, against {first_default:.2f} assumed. And DCCC's own split is optimal only if a dollar in its 80%+ races works {min(safe_k.values()):.1f}-{max(safe_k.values()):.1f} times as hard as one in its 20-80% races, or those seats are worth that much more to it (section 5).
 - **Judged with what a Sept 1 decision could see, less of that money looks over-cautious.** A forecast built from the Sept 1 polls plus the usual fall drift (about {abs(drift_last['mean']):.0f} points toward {'Republicans' if drift_last['mean'] < 0 else 'Democrats'}) is about as accurate on average as the final-poll one (log loss {ll_sept:.3f} against {ll_final:.3f}, better in {len(sept_better)} of {len(backtests)} years), and its seat ranges hold the result in {covered_sept} of {len(backtests)} years. Under it, DCCC's share in 80%+ seats falls from {safe_dccc:.0%} to {safe_sept:.0%}. Judging each dollar by the forecast on the date it reached voters instead (checkpoints from Sept 1 to Oct 25), the share is {safe_spent:.0%}, and what's left still implies a dollar in a safe seat works {np.nanmin(spent_k):.1f}-{np.nanmax(spent_k):.1f} times as hard. Through the fall the national uncertainty shrinks, but the race forecasts don't get sharper (sections 4-5).
@@ -393,6 +470,7 @@ Races with under $100K of total spending and Alaska (ranked-choice) are excluded
 | `floor_share` | log((F_D + $10K) / (F_D + F_R + $20K)), F = what that side's nominee had raised from others by June 30 + outside money that had reached voters by Aug 31 | Candidate strength and how hard each side contests the race, using only money neither national committee controls, and only as much of it as a forecaster deciding on Sept 1 could see |
 | `fresh_d`, `fresh_r` | The party's nominee is a first-term incumbent: not among the state's House winners four years earlier | Members first elected in a wave run well behind the usual incumbency edge |
 | `over_inc`, `over_open` | Last cycle's margin - that year's generic ballot - 1.6 x its PVI, if the state's lines haven't changed. Set when that party's incumbent runs again (`over_inc`) or the seat is open (`over_open`), zero otherwise | How far the seat's party ran ahead of the district's lean, some of which carries over |
+| `inc_redrawn` | +1 for a Democratic incumbent, -1 for a Republican one, where the state's lines changed since the last election (every state in 2012, the first map here); 0 otherwise | Only in two comparisons (section 4): how incumbents on new lines run, and how far they miss |
 | `gb` | Generic-ballot average before the election | The national environment, applied as a uniform swing |
 
 ## 3. The model
@@ -413,7 +491,7 @@ P(Democrat wins race i) = Phi(expected margin_i / sigma)
 
 Each point of PVI is worth {c['pvi']:.1f} points of margin. Having the Democrat rather than the Republican as the incumbent is worth {c['d_incumbent']:.0f} points, {-c['fresh_d']:.0f} less for a first-term Democrat; first-term Republicans show no such gap ({c['fresh_r']:+.1f}). About a fifth of how far a seat's party ran ahead of its lean last time carries into the next election ({c['over_inc']:.2f} with the incumbent running again, {c['over_open']:.2f} for an open seat). The generic ballot is fixed at a 1:1 pass-through rather than estimated: with one national value per cycle, a fitted slope would mostly chase polling misses. sigma is the residual spread, so it includes those misses; that is the right uncertainty for a forecast made before the votes are counted.
 
-**National, state and district error.** Part of every race's error is shared: in a year the polls miss, they miss everywhere at once, and races in the same state also miss together. Splitting it out, sigma^2 = sigma_national^2 + sigma_state^2 + sigma_district^2. sigma_national = {m['sigma_national']:.1f} points is the spread of each cycle's average miss. sigma_state = {m['sigma_state']:.1f} is how much each state's average miss varies beyond what its number of races explains, and sigma_district = {m['sigma_district']:.1f} is the rest. A single race's probability needs only the total. The seat total needs the split: conditional on the national and state misses, races are independent, and averaging over both gives the seat distribution in section 7.
+**National, state and district error.** Part of every race's error is shared: in a year the polls miss, they miss everywhere at once, and races in the same state also miss together. Splitting it out, sigma^2 = sigma_national^2 + sigma_state^2 + sigma_district^2. sigma_national = {m['sigma_national']:.1f} points is the spread of each cycle's average miss. sigma_state = {m['sigma_state']:.1f} is how much each state's average miss varies beyond what its number of races explains, and sigma_district = {m['sigma_district']:.1f} is the rest. A single race's probability needs only the total, and every race gets the same one: letting it depend on the race (open seat, redrawn lines, lean) {'scored no better' if ll_mean['spread'] >= ll_mean['with'] else 'scored about the same'} (section 4). The seat total needs the split: conditional on the national and state misses, races are independent, and averaging over both gives the seat distribution in section 7.
 
 sigma_national rests on only {len(m['cycles'])} cycle averages, so it is itself uncertain: anywhere from {nat_lo:.1f} to {nat_hi:.1f} points is plausible (90% range). The seat total doesn't treat it as known. Averaging a normal national miss over that uncertainty gives a Student t with {m['national_df']} degrees of freedom, so a big miss is more likely than the point estimate alone says, and the fewer cycles behind the estimate, the more so. Each race's own probability, and so the allocation, still uses the point estimate.
 
@@ -449,6 +527,32 @@ Seats are counted among modeled races, so Alaska and races with under $100K of s
 {history_rows}
 
 Averaged over {years}, log loss falls from {ll_mean['without']:.3f} to {ll_mean['with']:.3f}. The history helps most in {helped[0]} and {helped[1]}{', and costs a little in ' + ' and '.join(map(str, hurt)) if hurt else ''}.
+
+**Incumbency that drifts.** The forecast pools one incumbency effect over every cycle, though it has shrunk (section 9). The alternative (`fit_drift.py`) lets only incumbency drift. Each cycle gets its own, estimated with everything else after taking out that cycle's national miss, and a random walk links them, its step size fit to the training cycles alone. It also adds a term for incumbents on lines redrawn since the last election, where no history carries over: how far they run ahead of incumbents on old lines once the old-lines member's last result is counted. That term is learned within cycles, from years when some states redrew and others didn't. Fit and scored the same way:
+
+| Year | Incumbency the forecast uses (c): pooled / drifting | Log loss: pooled / drifting | Brier: pooled / drifting | Margin error in contested races, points: pooled / drifting | Redrawn-lines term, points (standard error) |
+|---|---|---|---|---|---|
+{drift_rows}
+
+Drifting gets the margins closer ({error_mean['mu']:.1f} against {error_mean['mu_drift']:.1f} points on average) and mostly removes the pooled forecast's lean toward incumbents: across the backtests, after taking out each year's national polling miss, incumbents ran {ran(ahead['mu'].mean())} the pooled forecast and {ran(ahead['mu_drift'].mean())} the drifting one. But it calls winners worse in {drift_worse} of {len(backtests)} years (log loss {ll_mean['drift']:.3f} against {ll_mean['with']:.3f}), because the edge shrank less where the race is close. In the {int(near.sum())} incumbent races the pooled forecast put within 15 points, incumbents ran {ran(ahead['mu'][near].mean())} it and {ran(ahead['mu_drift'][near].mean())} the drifting forecast; in the other {int((~near).sum())}, {ran(ahead['mu'][~near].mean())} and {ran(ahead['mu_drift'][~near].mean())}. In the {int(toss_up.sum())} toss-ups, within 5 points, they ran {ran(ahead['mu'][toss_up].mean())} the pooled forecast and {ran(ahead['mu_drift'][toss_up].mean())} the drifting one: drifting takes the most from the races that decide seats. The drift is also erratic. Estimated cycle by cycle, having the Democrat rather than the Republican as the incumbent was worth {c_by_cycle}. The random walk that fits those best moves about {di['tau']:.0f} points per cycle, so the drifting forecast stays unsure of the next value ({di['c_next']:.1f} for {fc['cycle']}, give or take {di['c_next_se']:.1f}). The forecast keeps one pooled effect.
+
+**Less credit in close races?** Incumbents in close races still run behind the pooled forecast, so two versions give them a different edge there and keep the pooled one elsewhere (`fit_close.py`), fit and scored the same way. "Close" means the pooled forecast is within {CLOSE} points. One version uses the drifting forecast's smaller edge in those races. The other fits its own edge for them from the training years, on top of the pooled one:
+
+| Year | Close races | Own edge in close races beyond the pooled one, points each way | Log loss, all races: pooled / drifting edge when close / own edge when close | Log loss, close races only: pooled / drifting edge / own edge |
+|---|---|---|---|---|
+{close_rows}
+
+The drifting edge in close races calls them worse in {hybrid_worse} of {len(backtests)} years (log loss {ll_in_close['hybrid']:.3f} against {ll_in_close['with']:.3f} in those races; {ll_mean['hybrid']:.3f} against {ll_mean['with']:.3f} over all races). Fit from earlier years, the close-race edge comes out {q_way} than the pooled one ({min(q):+.1f} to {max(q):+.1f} points each way), and scores about the same as the pooled forecast ({ll_in_close['close']:.3f} against {ll_in_close['with']:.3f} in close races).{' Incumbents in close races do not need less credit than the rest: all incumbents get a little too much, most of all where the race is not close.' if ll_in_close['hybrid'] > ll_in_close['with'] and ll_in_close['close'] > ll_in_close['with'] - 0.005 else ''} The forecast keeps one incumbency effect for every race.
+
+**Incumbents on redrawn lines don't run behind.** Fit on the cycles before each backtest year from {first_term_year} on, the redrawn-lines term is {min(early_terms):+.1f} to {max(early_terms):+.1f} points (standard errors {min(early_ses):.1f}-{max(early_ses):.1f}, clustered by state). Fit on {di['cycles'][0]}-{di['cycles'][-1]}, after {last}'s {n_last_redrawn} incumbents on redrawn lines, it is {di['redrawn']:+.1f} ({di['redrawn_se']:.1f}): an incumbent on new lines ran about that far ahead of one on old lines. Against the pooled forecast, out of sample and beyond each year's national miss, incumbents on redrawn lines ran {ran(ahead['mu'][on_new].mean())} it and those on unchanged lines {ran(ahead['mu'][~on_new].mean())}; in the years when only some states redrew ({', '.join(map(str, partial_years))}), {ran(ahead['mu'][on_new & partial].mean())} against {ran(ahead['mu'][~on_new & partial].mean())}.{' The forecast overrates incumbents in general (section 9), and those on new lines less than the rest.' if ahead['mu'][~on_new].mean() < ahead['mu'][on_new].mean() < 0 else ''} Section 7 applies this to {fc['cycle']}.
+
+**Error size set by the race.** The forecast gives every race the same uncertainty. The alternative (`fit_spread.py`) keeps the forecast's expected margins and lets each race's error size depend on three things: whether the seat is open, whether the incumbent is on redrawn lines, and how lopsided its lean is. The national miss hits every race alike, so the features scale only the state and district parts of the error. They move uncertainty from one race to another without changing the total, and they are fit within years, because across years a raw comparison mostly measures which years were noisy. Pooled over {first}-{last}, incumbents on redrawn lines missed by {miss_by['new']:.1f} points beyond their year's national miss, against {miss_by['old']:.1f} for those on old lines. But {noisy_share:.0%} of them ran in {noisiest}, the noisiest year in the data ({year_miss.max():.1f} points, against {year_miss.drop(noisiest).min():.1f}-{year_miss.drop(noisiest).max():.1f} in the others). In the {len(mixed_years)} years with incumbents on both kinds of lines, those on redrawn lines missed by less in {int((mixed_years.new < mixed_years.old).sum())}. Fit and scored the same way, with each term as how much it widens a race's state and district error (standard error):
+
+| Year | Log loss: one sigma / set by the race | Brier: one sigma / set by the race | Sigma, points: one / range set by the race | Open seat | Incumbent on redrawn lines | Each 10 points of lean |
+|---|---|---|---|---|---|---|
+{spread_rows}
+
+Averaged over {years}, log loss is {ll_mean['spread']:.3f} with the error set by the race, against {ll_mean['with']:.3f} with one sigma, better in {spread_better} of {len(backtests)} years. {'No term is more than two standard errors from zero in any training set.' if not spread_clear else 'Only ' + ', '.join(f'{term_names[t]} in {c}' for c, t in spread_clear) + ' is more than two standard errors from zero.'} Fit on {first}-{last}, the terms are {size(fs, 'open_seat')} for open seats, {size(fs, 'redrawn_inc')} for incumbents on redrawn lines and {size(fs, 'lean')} per 10 points of lean. {'With no gain, the' if ll_mean['spread'] >= ll_mean['with'] else 'The gain is small and the terms are mostly noise, so the'} forecast keeps one sigma for every race.
 
 **What hindsight money was worth.** The money feature counts only what a forecaster deciding on Sept 1 could see: what each nominee had raised by June 30 (the FEC's July report; {raised_june:.0%} as much as nominees went on to spend over the whole election), less the candidate's own contributions and loans, and outside money that had reached voters by Aug 31 ({seen_outside:.0%} of all outside money, {first}-{last}). An earlier version of this repo counted all of it, though most is spent in the fall and some follows how the race is going. That hindsight version, fit and scored the same way:
 
@@ -603,13 +707,13 @@ Averaging over the national and state errors instead of fixing them gives the fu
 
 ![Battleground](figures/10_battleground.png)
 
-**Incumbents on redrawn lines.** The incumbency effect is learned from members running in their own districts, and is probably too large for members whose districts were redrawn. Each redrawn-incumbent race with either chance between 20% and 80% is shown below, with full incumbency credit and with the seat treated as open. The truth likely lies in between, depending on how much of the new district the member already represented.
+**Incumbents on redrawn lines.** {len(moved)} incumbents run on lines redrawn for {fc['cycle']}. The forecast gives them the full incumbency effect and no history from their old seats. That is how it treated them in training too: {share_new:.0%} of the incumbents in {first}-{last} ran on lines redrawn since the last election, most of them in 2012 and 2022, so its incumbency effect already mixes old lines and new. And incumbents on new lines haven't run behind (section 4): within cycles, {ran(di['redrawn'])} those on old lines (standard error {di['redrawn_se']:.1f}), and out of sample {ran(ahead['mu'][on_new].mean())} the forecast, against {ran(ahead['mu'][~on_new].mean())} for incumbents on unchanged lines. How much of the new district a member already represented isn't used. The redrawn-incumbent races in play, under the forecast and under the drifting-incumbency model (section 4) with its redrawn-lines term on and off (off: as if each member had kept their lines):
 
-| Race | Incumbent | PVI | With incumbency | As open seat |
-|---|---|---|---|---|
-{bound_rows}
+| Race | Incumbent | PVI | Forecast | Drifting incumbency | Drifting, as if on old lines |
+|---|---|---|---|---|---|
+{moved_rows}
 
-Individual races move {bound_swing.min() * 100:.0f}-{bound_swing.max() * 100:.0f} points, but the shifts run in both directions and largely cancel: treating all {len(moved)} redrawn incumbents as open moves the expected Democratic total by {bound_net:+.1f} seats.
+The term helps both parties' redrawn incumbents, so it nets out to {redraw_net:+.1f} expected Democratic seats. The drifting model as a whole moves the total more: it expects {s26_drift['mean']:.0f} Democratic seats (80% range {s26_drift['p10']}-{s26_drift['p90']}, a {s26_drift['p_majority']:.0%} chance of a majority), against the forecast's {s26['mean']:.0f}. It calls past winners worse, though, so the forecast stays as it is.
 
 ## 8. Does household stress explain where the polls miss?
 
@@ -660,8 +764,8 @@ What this doesn't settle: whether the same stress moves some districts more than
 
 - **The spending effect is assumed.** The allocation results depend on it, and public data can't pin it down. Section 5 adds two readings that need less of it: how strong it would have to be for reallocating to matter, and what DCCC's own allocation implies. Both still assume the same curve in every race, and that each party's money moves the margin independently of the other's.
 - **Likely R seats are overrated**, at about {pooled[pooled.tier == 'Likely R'].p.mean():.0%} predicted against {(pooled[pooled.tier == 'Likely R'].margin > 0).mean():.0%} actual. Most of the gap is 2020 ({lr20.p.mean():.0%} predicted, {(lr20.margin > 0).mean():.0%} actual), the national polling miss again, rather than a problem in deep-red seats specifically.
-- **The incumbency effect has shrunk.** Fit on {first}-2016 alone, having the Democrat rather than the Republican as the incumbent is worth {early['d_incumbent']:.0f} points; on 2018-{last}, {late['d_incumbent']:.0f}. The model pools every cycle and gives {fc['cycle']} incumbents {c['d_incumbent']:.0f} points, more than recent cycles alone would. Weighting recent cycles more was tested while building this repo and forecast worse forward in time: the fits got noisy and overconfident. The first-term flag captures the part of the decline that can be predicted.
-- **The incumbency effect is learned from incumbents running in their own districts**, so it is probably too large for members on redrawn {fc['cycle']} maps (bounds in section 7).
+- **The incumbency effect has shrunk.** Fit on {first}-2016 alone, having the Democrat rather than the Republican as the incumbent is worth {early['d_incumbent']:.0f} points; on 2018-{last}, {late['d_incumbent']:.0f}. The model pools every cycle and gives {fc['cycle']} incumbents {c['d_incumbent']:.0f} points, more than recent cycles alone would. Letting incumbency drift from cycle to cycle gives them {di['c_next']:.0f} but calls past winners worse (section 4): the edge shrank less in races that were close. Weighting recent cycles more forecast worse too (tested while building this repo). The first-term flag captures the part of the decline that can be predicted.
+- **Incumbents on redrawn lines get full credit on thin evidence.** They have run no worse than incumbents on old lines (section 4), but outside 2022 that comparison rests on a few redrawn states a year, and how much of the new district a member already represented isn't used (section 7).
 - **{fc['cycle']} nominees are the top spenders reported so far** until official results name them, and their money counts through June 30, as in past cycles. Where the top spender had no House report through June 30 (a Senate run, a campaign that ended, a primary loser), the actual nominees were looked up by hand, with sources, in [`data/nominees_{fc['cycle']}.csv`](data/nominees_{fc['cycle']}.csv): {len(hand_checked)} districts, {', '.join(hand_checked)}. Other districts' top spenders were not checked one by one.{(' Still without a House report through June 30: ' + ', '.join(no_july.district_id) + '; that side counts as $0' + ('. ' + misjudged + (' are' if len(no_july_close) > 1 else ' is') + ' competitive and may be misjudged as a result.' if len(no_july_close) else '.')) if len(no_july) else ''}
 - **The main forecast uses the final pre-election generic ballot.** Section 4 adds the forecast a Sept 1 decision could make, and section 5 redoes the safe-seat readings with it. DCCC spends from September to November, so neither is exactly what it saw for any one dollar. The 2026 forecast uses the latest average.
 - **TV-market data starts with the 2022 maps**, so market costs cover the 2022 and 2024 backtests only. Channels come from filers' own purpose descriptions; some say only "MEDIA" and stay unspecified.

@@ -7,7 +7,8 @@ Features:
   nominees; a Republican incumbent is the baseline.
 - fresh_d / fresh_r, over_inc / over_open: first-term incumbents, and how
   far the seat's party ran ahead of its lean two years earlier
-  (incumbent_history.py).
+  (incumbent_history.py). redrawn / inc_redrawn: the lines changed since
+  the last election, for the drifting-incumbency forecast (fit_drift.py).
 - floor_share = log((F_D + k) / (F_D + F_R + 2k)), F = what that side's
   nominee had raised from others by June 30 (the July FEC report, less the
   candidate's own contributions and loans) plus outside
@@ -86,7 +87,7 @@ def build_races(cycle):
     keep = (total >= MIN_TOTAL_SPEND) & ~races.district_id.str[:2].isin(EXCLUDED_STATES)
     return races[keep].reset_index(drop=True)[[
         "cycle", "district_id", "tier", "status", "pvi", "d_incumbent", "open_seat", "floor_share",
-        "fresh_d", "fresh_r", "over_inc", "over_open", "gb",
+        "fresh_d", "fresh_r", "over_inc", "over_open", "redrawn", "inc_redrawn", "gb",
         "disbursements_d", "disbursements_r", "outside_d", "outside_r", "dccc", "nrcc", "margin",
         "raised_jun_d", "raised_jun_r", "spent_jun_d", "spent_jun_r", "own_jun_d", "own_jun_r",
         "outside_aug_d", "outside_aug_r"]]

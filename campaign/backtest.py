@@ -6,7 +6,12 @@ for comparison), then ask how DCCC's own spending compares with
 the best allocation of the same budget under the spending assumption,
 across a grid of assumptions. The same forecast without the incumbent
 history features (first-term flags, last cycle's overperformance) is scored
-alongside, to show what they add, and so is one using each side's money
+alongside, to show what they add, and so is one whose incumbency effect
+drifts from cycle to cycle, with a term for redrawn lines (fit_drift.py),
+two that give incumbents a different edge where the race is expected to be
+close (fit_close.py: its own fitted term, and the drifting edge there only),
+one whose error size is set by each race's features (fit_spread.py),
+and one using each side's money
 over the whole election instead of what was visible by Sept 1, to show
 what that hindsight was worth. Two readings need less of that assumption:
 how strong party money would have to be for reallocating to gain a full
@@ -37,6 +42,9 @@ from .break_even import break_even_scale
 from .build_races import FLOOR_PSEUDO_DOLLARS
 from .dated_forecast import CHECKPOINTS, dated_forecast
 from .fit_baseline import FEATURES, HISTORY, fit_baseline
+from .fit_close import CLOSE, close_inc, fit_close
+from .fit_drift import fit_drift
+from .fit_spread import fit_spread, race_sigma
 from .implied_belief import implied_belief
 from .load_expenditures import load_expenditures
 from .predict_margin import predict_margin
@@ -67,6 +75,16 @@ def backtest(cycle, races):
     test["p"] = norm.cdf(test.mu / model["sigma"])
     test["mu_without"] = predict_margin(test, without)
     test["p_without"] = norm.cdf(test.mu_without / without["sigma"])
+    drift = fit_drift(train)
+    test["mu_drift"] = predict_margin(test, drift)
+    test["p_drift"] = norm.cdf(test.mu_drift / drift["sigma"])
+    close = fit_close(train, model)
+    test["mu_close"] = predict_margin(test.assign(inc_close=close_inc(test, model)), close)
+    test["p_close"] = norm.cdf(test.mu_close / close["sigma"])
+    test["p_hybrid"] = norm.cdf(np.where(test.mu.abs() < CLOSE, test.mu_drift, test.mu) / model["sigma"])
+    spread = fit_spread(train, model)
+    test["sigma_spread"] = race_sigma(test, spread)
+    test["p_spread"] = norm.cdf(test.mu / test.sigma_spread)
     hindsight = fit_baseline(hindsight_money(train))
     test["p_hindsight"] = norm.cdf(predict_margin(hindsight_money(test), hindsight) / hindsight["sigma"])
     dated = {date: dated_forecast(cycle, races, date) for date in CHECKPOINTS}
@@ -77,12 +95,17 @@ def backtest(cycle, races):
         test[f"p_{date}"] = f["p"]
     known = test[test.margin.notna()].assign(won=lambda t: (t.margin > 0).astype(float))
     calibration = known.groupby("tier").agg(n=("p", "size"), predicted=("p", "mean"), actual=("won", "mean"))
-    scores = {}
-    for name, col in [("with", "p"), ("without", "p_without"), ("hindsight", "p_hindsight"), ("sept", "p_sept")] + \
-                     [(date, f"p_{date}") for date in CHECKPOINTS]:
-        p = known[col].clip(1e-6, 1 - 1e-6)
-        scores[name] = {"brier": float(np.mean((p - known.won) ** 2)),
-                        "log_loss": float(-np.mean(known.won * np.log(p) + (1 - known.won) * np.log(1 - p)))}
+    def score(r, col):
+        p = r[col].clip(1e-6, 1 - 1e-6)
+        return {"brier": float(np.mean((p - r.won) ** 2)),
+                "log_loss": float(-np.mean(r.won * np.log(p) + (1 - r.won) * np.log(1 - p)))}
+    scores = {name: score(known, col) for name, col in
+              [("with", "p"), ("without", "p_without"), ("drift", "p_drift"), ("close", "p_close"),
+               ("hybrid", "p_hybrid"), ("spread", "p_spread"), ("hindsight", "p_hindsight"), ("sept", "p_sept")]
+              + [(date, f"p_{date}") for date in CHECKPOINTS]}
+    near = known[known.mu.abs() < CLOSE]          # the races the pooled forecast put within CLOSE points
+    scores_close = {name: score(near, col) for name, col in
+                    [("with", "p"), ("drift", "p_drift"), ("close", "p_close"), ("hybrid", "p_hybrid")]}
 
     budget, cap = float(test.dccc.sum()), CAP_SHARE * float(test.dccc.sum())
     grid = {(scale, half): reallocation_gain(test.mu, model["sigma"], test.dccc, cap, scale_pts=scale, half_saturation=half)
@@ -122,7 +145,8 @@ def backtest(cycle, races):
         timing[half_life] = {"races": t, "gain_retime": retime, "gain_both": both, "model_dccc": x,
                              "belief": implied_belief(test.mu, model["sigma"], landed, HALF_SATURATION / t.e_best,
                                                       weights=test.dccc)}
-    return {"cycle": cycle, "model": model, "races": test, "calibration": calibration,
-            "brier": scores["with"]["brier"], "scores": scores, "budget": budget, "gain": gain,
+    return {"cycle": cycle, "model": model, "drift": drift, "close": close, "spread": spread, "races": test,
+            "calibration": calibration, "brier": scores["with"]["brier"], "scores": scores,
+            "scores_close": scores_close, "n_close": len(near), "budget": budget, "gain": gain,
             "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats,
             "seats_known_sigma": seats_known, "sept": sept, "when_spent": when_spent, "timing": timing}

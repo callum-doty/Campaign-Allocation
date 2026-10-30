@@ -22,6 +22,9 @@ from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
+from campaign.fit_close import close_inc, fit_close  # noqa: E402
+from campaign.fit_drift import fit_drift, random_walk  # noqa: E402
+from campaign.fit_spread import fit_spread, race_sigma  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
@@ -75,6 +78,94 @@ def test_error_splits_into_national_state_and_district():
     assert model["sigma_district"] == pytest.approx(6, rel=0.1)
     assert model["sigma"] ** 2 == pytest.approx(
         model["sigma_national"] ** 2 + model["sigma_state"] ** 2 + model["sigma_district"] ** 2)
+
+
+def drifting_races(edges, redrawn_ahead=2.0, n=1500, seed=0):
+    """Races over several cycles: incumbents run `edges[cycle]` ahead each way, each cycle has its own
+    national miss, and incumbents in 16 of the 40 states, on redrawn lines, run `redrawn_ahead` further."""
+    rng = np.random.default_rng(seed)
+    cycles = []
+    for i, (cycle, edge) in enumerate(edges.items()):
+        races = synthetic_races(n, seed=seed + i).assign(cycle=cycle)
+        races["status"] = np.select([races.d_incumbent == 1, races.open_seat == 1], ["D incumbent", "Open"], "R incumbent")
+        inc = races.d_incumbent - (races.status == "R incumbent")
+        races["redrawn"] = races.district_id.str[0].isin(["A", "B"]) * 1.0
+        races["inc_redrawn"] = inc * races.redrawn
+        races["margin"] = (1 + 1.7 * races.pvi + edge * inc + 3 * races.floor_share + 0.25 * races.over_inc
+                           + redrawn_ahead * races.inc_redrawn + races.gb + rng.normal(0, 3) + rng.normal(0, 6, n))
+        cycles.append(races)
+    return pd.concat(cycles, ignore_index=True)
+
+
+def test_drifting_incumbency_follows_each_cycle_and_finds_the_redrawn_term():
+    edges = {2012: 8.0, 2014: 6.0, 2016: 6.5, 2018: 3.0, 2020: 2.0, 2022: 2.5}
+    model = fit_drift(drifting_races(edges))
+    inc = model["incumbency"]
+    assert inc["c"] == pytest.approx([2 * e for e in edges.values()], abs=1.0)
+    assert inc["redrawn"] == pytest.approx(2.0, abs=0.5)
+    assert inc["tau"] > 1 and inc["c_next"] < 8
+    assert model["coef"]["d_incumbent"] == pytest.approx(inc["c_next"])
+    assert model["coef"]["pvi"] == pytest.approx(1.7, abs=0.05)
+
+
+def test_steady_incumbency_barely_drifts():
+    inc = fit_drift(drifting_races(dict.fromkeys(range(2012, 2024, 2), 5.0)))["incumbency"]
+    assert inc["tau"] < 1.5
+    assert inc["c_next"] == pytest.approx(10, abs=0.6)
+
+
+def test_redrawn_term_needs_a_cycle_with_both_kinds_of_lines():
+    races = drifting_races({2012: 8.0, 2014: 6.0})
+    races["redrawn"] = (races.cycle == 2012) * 1.0
+    races["inc_redrawn"] = (races.d_incumbent - (races.status == "R incumbent")) * races.redrawn
+    model = fit_drift(races)
+    assert model["incumbency"]["redrawn"] is None and "inc_redrawn" not in model["coef"]
+
+
+def test_random_walk_pools_without_drift_and_follows_the_last_estimate_with_a_lot():
+    estimates, variances = np.array([10.0, 4.0, 7.0]), np.array([1.0, 4.0, 1.0])
+    _, mean, var = random_walk(estimates, variances, 0.0)
+    assert mean == pytest.approx(np.sum(estimates / variances) / np.sum(1 / variances))
+    assert var == pytest.approx(1 / np.sum(1 / variances))
+    assert random_walk(estimates, variances, 1e4)[1] == pytest.approx(7.0, abs=1e-3)
+
+
+def test_close_race_edge_is_found_where_the_forecast_is_close_and_nowhere_else():
+    races = drifting_races(dict.fromkeys(range(2012, 2020, 2), 6.0), redrawn_ahead=0.0)
+    model = fit_baseline(races)
+    assert fit_close(races, model)["coef"]["inc_close"] == pytest.approx(0, abs=0.75)
+    races["margin"] -= 3 * close_inc(races, model)          # incumbents in close races worth 3 points less each way
+    fitted = fit_close(races, model)
+    assert fitted["coef"]["inc_close"] == pytest.approx(-3, abs=0.75)
+    assert fitted["coef"]["d_incumbent"] == pytest.approx(12, abs=1.5)
+
+
+def test_error_size_follows_a_race_feature_within_cycles():
+    races = drifting_races(dict.fromkeys(range(2012, 2024, 2), 5.0), redrawn_ahead=0.0)
+    races["margin"] += races.open_seat * np.random.default_rng(1).normal(0, np.sqrt(9 ** 2 - 6 ** 2), len(races))
+    spread = fit_spread(races, fit_baseline(races))
+    assert spread["g"]["open_seat"] == pytest.approx(np.log(9 ** 2 / 6 ** 2), abs=0.15)
+    assert spread["g"]["redrawn_inc"] == pytest.approx(0, abs=0.15)
+    assert spread["g"]["lean"] == pytest.approx(0, abs=0.05)
+
+
+def test_a_noisy_year_doesnt_read_as_a_term_that_falls_in_it():
+    races = drifting_races(dict.fromkeys(range(2012, 2020, 2), 5.0), redrawn_ahead=0.0)
+    first = races.cycle == 2012                  # every incumbent on new lines, and every race noisier
+    races.loc[first, "redrawn"] = 1.0
+    races["inc_redrawn"] = (races.d_incumbent - (races.status == "R incumbent")) * races.redrawn
+    races.loc[first, "margin"] += np.random.default_rng(1).normal(0, 8, first.sum())
+    spread = fit_spread(races, fit_baseline(races))
+    assert spread["g"]["redrawn_inc"] == pytest.approx(0, abs=0.15)
+    sigma = race_sigma(races[races.margin.abs() < 80], spread)
+    assert np.mean(sigma ** 2) == pytest.approx(spread["sigma"] ** 2)
+
+
+def test_redrawn_error_term_needs_a_cycle_with_both_kinds_of_lines():
+    races = drifting_races({2012: 8.0, 2014: 6.0})
+    races["redrawn"] = (races.cycle == 2012) * 1.0
+    races["inc_redrawn"] = (races.d_incumbent - (races.status == "R incumbent")) * races.redrawn
+    assert "redrawn_inc" not in fit_spread(races, fit_baseline(races))["g"]
 
 
 def test_seat_distribution_mean_spread_and_symmetry():

@@ -17,6 +17,11 @@ Two features from each district's recent House history.
   party's incumbent is running again, over_open when the seat is open; each
   is zero otherwise, as is everything after a redraw or an uncontested race.
   A member who won by half a point in a wave year carries that forward.
+- redrawn / inc_redrawn: the state's lines changed since the last election
+  (in 2012, the first map here, every state counts as redrawn), and that
+  flag signed by the incumbent (+1 Democratic, -1 Republican, 0 open).
+  No history carries over there, so fit_drift.py learns how incumbents on
+  new lines run against ones on old lines.
 """
 
 import unicodedata
@@ -35,7 +40,7 @@ UNCONTESTED = 80
 
 
 def incumbent_history(cycle, races, prior_gb):
-    """fresh_d, fresh_r, over_inc, over_open for each row of `races`, which
+    """fresh_d, fresh_r, over_inc, over_open, redrawn, inc_redrawn for each row of `races`, which
     needs district_id, d_incumbent, open_seat, status and the nominees' FEC
     names (name_d, name_r, "SURNAME, FIRST"). `prior_gb`: the generic ballot
     two years earlier."""
@@ -55,7 +60,9 @@ def incumbent_history(cycle, races, prior_gb):
         out[f"fresh_{side}"] = (incumbent & ~np.array(returning)).astype(float)
 
     out["over_inc"], out["over_open"] = 0.0, 0.0
+    signed = races.d_incumbent - (races.status == "R incumbent")
     if cycle - 2 not in LINES:
+        out["redrawn"], out["inc_redrawn"] = 1.0, signed.astype(float)
         return out
     old, new = LINES[cycle - 2], LINES[cycle]
     common = max(set(load_presidential(old).pres_year) & set(load_presidential(new).pres_year))
@@ -70,4 +77,6 @@ def incumbent_history(cycle, races, prior_gb):
     rerun = ((races.d_incumbent == 1) & held_d) | ((races.status == "R incumbent") & ~held_d)
     out["over_inc"] = over.where(rerun, 0.0)
     out["over_open"] = over.where(races.open_seat == 1, 0.0)
+    out["redrawn"] = (~unchanged).astype(float)
+    out["inc_redrawn"] = signed * out.redrawn
     return out
