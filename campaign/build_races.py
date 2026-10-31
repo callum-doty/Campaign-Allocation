@@ -9,6 +9,10 @@ Features:
   far the seat's party ran ahead of its lean two years earlier
   (incumbent_history.py). redrawn / inc_redrawn: the lines changed since
   the last election, for the drifting-incumbency forecast (fit_drift.py).
+- q_d / q_r, quality: that side's nominee isn't the incumbent and had a
+  Wikipedia article on Jan 1 of the election year (load_quality.py), a
+  stand-in for having held office or otherwise being known before the
+  campaign; quality = q_d - q_r. A nominee FEC can't match counts as 0.
 - floor_share = log((F_D + k) / (F_D + F_R + 2k)), F = what that side's
   nominee had raised from others by June 30 (the July FEC report, less the
   candidate's own contributions and loans) plus outside
@@ -39,6 +43,7 @@ from .incumbent_history import incumbent_history
 from .load_candidates import load_candidates
 from .load_early_money import load_early_money
 from .load_pvi import load_pvi
+from .load_quality import load_quality
 from .load_results import load_results
 from .load_spending import load_spending
 
@@ -75,6 +80,11 @@ def build_races(cycle):
     races["open_seat"] = ((races.d_incumbent == 0) & (races.get("ici_r") != "I")).astype(float)
     races["status"] = np.select([races.d_incumbent == 1, races.open_seat == 1], ["D incumbent", "Open"], "R incumbent")
     races = races.join(incumbent_history(cycle, races, ballot.get(cycle - 2)))
+    quality = load_quality(cycle)
+    for side, incumbent in (("d", "D incumbent"), ("r", "R incumbent")):
+        ids = races.get(f"cand_id_{side}", pd.Series(None, index=races.index, dtype=object))
+        races[f"q_{side}"] = ids.map(quality).fillna(0.0) * (races.status != incumbent)
+    races["quality"] = races.q_d - races.q_r
     for side in ("d", "r"):
         raised = (races[f"raised_jun_{side}"] - races[f"own_jun_{side}"]).clip(lower=0)
         races[f"floor_{side}"] = raised + races[f"outside_aug_{side}"]
@@ -87,7 +97,7 @@ def build_races(cycle):
     keep = (total >= MIN_TOTAL_SPEND) & ~races.district_id.str[:2].isin(EXCLUDED_STATES)
     return races[keep].reset_index(drop=True)[[
         "cycle", "district_id", "tier", "status", "pvi", "d_incumbent", "open_seat", "floor_share",
-        "fresh_d", "fresh_r", "over_inc", "over_open", "redrawn", "inc_redrawn", "gb",
+        "fresh_d", "fresh_r", "over_inc", "over_open", "redrawn", "inc_redrawn", "q_d", "q_r", "quality", "gb",
         "disbursements_d", "disbursements_r", "outside_d", "outside_r", "dccc", "nrcc", "margin",
         "raised_jun_d", "raised_jun_r", "spent_jun_d", "spent_jun_r", "own_jun_d", "own_jun_r",
         "outside_aug_d", "outside_aug_r"]]

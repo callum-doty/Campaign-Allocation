@@ -1,7 +1,7 @@
 """
 Job 1: the baseline forecast, fit by ordinary least squares.
 
-    margin_i - GB = a + b PVI_i + c D_incumbent_i + d Open_i + e floor_share_i
+    margin_i - GB = a + b PVI_i + c D_incumbent_i + d Open_i + e floor_share_i + q quality_i
                     + f fresh_d_i + g fresh_r_i + h over_inc_i + k over_open_i + error_i
     error_i ~ Normal(0, sigma^2)
 
@@ -18,6 +18,12 @@ first-term flags (fresh_d, fresh_r) capture the part of the decline that
 can be predicted, the wave-year freshmen who run well behind it. A version
 where only incumbency drifts from cycle to cycle, with a term for redrawn
 lines, is scored alongside in the backtest (fit_drift.py).
+
+quality marks an experienced nominee who isn't the incumbent (a Wikipedia
+article before the election year, load_quality.py). Such nominees raise
+more, so it overlaps floor_share, but only partly: each keeps most of its
+effect with the other in the model. The backtest also scores the forecast
+without it.
 
 sigma splits into three parts, sigma^2 = sigma_national^2 + sigma_state^2 +
 sigma_district^2: a national miss shared by every race in a cycle (the
@@ -38,18 +44,25 @@ import numpy as np
 import pandas as pd
 
 HISTORY = ["fresh_d", "fresh_r", "over_inc", "over_open"]
-FEATURES = ["pvi", "d_incumbent", "open_seat", "floor_share"] + HISTORY
+FEATURES = ["pvi", "d_incumbent", "open_seat", "floor_share", "quality"] + HISTORY
 UNCONTESTED = 80
 
 
 def fit_baseline(races, features=FEATURES):
-    """{'coef': {name: value}, 'sigma', 'sigma_national', 'sigma_state',
-    'sigma_district', 'national_df', 'n', 'cycles'}"""
+    """{'coef': {name: value}, 'se': {name: standard error, clustered by state and cycle}, 'sigma',
+    'sigma_national', 'sigma_state', 'sigma_district', 'national_df', 'n', 'cycles'}"""
     train = races[races.margin.abs() < UNCONTESTED]
     X = np.column_stack([np.ones(len(train))] + [train[f].to_numpy(float) for f in features])
     y = (train.margin - train.gb).to_numpy(float)
     coef, *_ = np.linalg.lstsq(X, y, rcond=None)
-    return {"coef": dict(zip(["intercept"] + features, coef)), **split_error(train, y - X @ coef, X.shape[1])}
+    resid = y - X @ coef
+    group = pd.factorize(train.district_id.str[:2] + train.cycle.astype(str))[0]
+    score = np.zeros((group.max() + 1, X.shape[1]))
+    np.add.at(score, group, X * resid[:, None])
+    bread = np.linalg.inv(X.T @ X)
+    names = ["intercept"] + features
+    return {"coef": dict(zip(names, coef)), "se": dict(zip(names, np.sqrt(np.diag(bread @ score.T @ score @ bread)))),
+            **split_error(train, resid, X.shape[1])}
 
 
 def split_error(train, resid, n_params):

@@ -30,6 +30,11 @@ All sources are public. One needs a free key (FEC's API, below):
   Voting Survey for 2016-2024, how each jurisdiction's ballots were cast
   (load_early_vote.py).
   https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys
+- Wikipedia (MediaWiki API): whether each nominee who isn't the incumbent
+  had an article on Jan 1 of the election year (lookup_quality.py). About
+  3,500 nominees for 2012-2026, about an hour the first time; after that
+  only new nominees are looked up.
+  https://en.wikipedia.org/w/api.php
 """
 
 import io
@@ -42,6 +47,9 @@ import pandas as pd
 import requests
 
 from .household_index import FRED_IDS
+from .load_candidates import load_candidates
+from .load_results import load_results
+from .lookup_quality import lookup_quality
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
 
@@ -78,7 +86,8 @@ REPORT_FIELDS = ["committee_id", "report_type", "coverage_end_date", "receipt_da
                  "total_receipts_ytd", "total_disbursements_ytd", "cash_on_hand_end_period",
                  "candidate_contribution_ytd", "loans_made_by_candidate_ytd",
                  "total_individual_contributions_ytd", "individual_unitemized_contributions_ytd"]
-HEADERS = {"User-Agent": "Campaign-Allocation data fetch (github.com/callum-doty/Campaign-Allocation)"}
+HEADERS = {"User-Agent": "Campaign-Allocation/1.0 (https://github.com/callum-doty/Campaign-Allocation) "   # Wikimedia's
+                         f"python-requests/{requests.__version__}"}                                      # format
 
 
 def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
@@ -119,6 +128,13 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
         raise SystemExit(f"Missing House results. Download 1976-2024-house.tab from {MIT_URL} "
                          f"(Dataverse asks for a short guestbook form) and save it as "
                          f"{RAW / 'house_1976_2024.csv'}")
+
+    states = pd.read_csv(RAW / "house_1976_2024.csv", usecols=["state", "state_po"]).drop_duplicates()
+    states = dict(zip(states.state_po, states.state.str.title()))
+    for cycle in cycles:
+        dest = RAW / "wikipedia" / f"quality_{cycle}.csv"
+        if not dest.exists() or cycle in refresh:
+            lookup_quality(cycle, load_candidates(cycle, load_results(cycle)), states, dest, HEADERS)
 
 
 def fetch_reports(cycle, dest):

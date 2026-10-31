@@ -26,6 +26,7 @@ from campaign.fit_close import close_inc, fit_close  # noqa: E402
 from campaign.fit_drift import fit_drift, random_walk  # noqa: E402
 from campaign.fit_spread import fit_spread, race_sigma  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
+from campaign import lookup_quality as lq  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
 from campaign.reallocation_gain import reallocation_gain  # noqa: E402
@@ -51,6 +52,10 @@ def synthetic_races(n=500, seed=0):
     races["margin"] = (1 + 1.7 * races.pvi + 12 * races.d_incumbent + 5 * races.open_seat
                        + 3 * races.floor_share - 5 * races.fresh_d + 0.25 * races.over_inc
                        + races.gb + rng.normal(0, 6, n))
+    races["q_d"] = (status != 0) * (rng.random(n) < 0.2) * 1.0       # an experienced non-incumbent nominee
+    races["q_r"] = (status != 2) * (rng.random(n) < 0.2) * 1.0
+    races["quality"] = races.q_d - races.q_r
+    races["margin"] += 2 * races.quality
     return races
 
 
@@ -60,7 +65,65 @@ def test_baseline_recovers_known_coefficients():
     assert model["coef"]["d_incumbent"] == pytest.approx(12, abs=1.5)
     assert model["coef"]["fresh_d"] == pytest.approx(-5, abs=2)
     assert model["coef"]["over_inc"] == pytest.approx(0.25, abs=0.1)
+    assert model["coef"]["quality"] == pytest.approx(2, abs=1.2)
     assert model["sigma"] == pytest.approx(6, rel=0.1)
+
+
+STATE_NAMES = ["Virginia", "West Virginia", "Georgia", "Nebraska", "Wyoming", "Michigan", "California", "New Jersey"]
+
+
+def test_challenger_names_match_the_person_not_a_relative_or_namesake():
+    def same(title, name, state):
+        return lq.same_person(title, name, state, STATE_NAMES)
+    assert same("Bill Owens (politician)", "OWENS, WILLIAM L", "Virginia")              # nickname
+    assert same("Donald McEachin", "MCEACHIN, A. DONALD", "Virginia")                   # goes by his middle name
+    assert same("Bonnie Watson Coleman", "WATSON COLEMAN, BONNIE", "New Jersey")        # two-word surname
+    assert same("Sydney Kamlager-Dove", "KAMLAGER, SYDNEY", "California")               # surname added later
+    assert same("Joe Manchin (West Virginia politician)", "MANCHIN, JOE", "West Virginia")
+    assert same("Tom Kean Jr.", "THOMAS H KEAN JR", "New Jersey")                      # a ballot name
+    assert not same("Mac Collins", "COLLINS, MIKE", "Georgia")                         # his father
+    assert not same("Joseph P. Kennedy Sr.", "KENNEDY, JOSEPH P III", "Virginia")      # his grandfather
+    assert not same("Dale Kildee", "KILDEE, DANIEL T", "Michigan")                     # his uncle
+    assert not same("John Clinton Porter", "PORTER, JOHN MARK", "California")          # another middle name
+    assert not same("Mike Sullivan (Wyoming politician)", "SULLIVAN, MARK", "Nebraska")
+    assert not same("Joe Smith (West Virginia politician)", "SMITH, JOE", "Virginia")
+    assert not same("John Adams College and Career Academy", "ADAMS, JOHN", "Virginia")
+
+
+def test_an_article_on_the_other_party_is_a_namesake():
+    infobox = "{{Infobox officeholder\n| party = [[Democratic Party (United States)|Democratic]]\n}}"
+    prose = "'''Bob Brooks''' is an American politician. He is a former [[Republican Party (United States)|Republican]] member."
+    assert not lq.party_ok(infobox, "R") and lq.party_ok(infobox, "D")
+    assert not lq.party_ok(prose, "D") and lq.party_ok(prose, "R")
+    assert lq.party_ok("'''Jo Doe''' is a businesswoman. She lost to Democratic incumbent Jane Roe.", "R")
+
+
+def test_quality_reads_the_article_as_it_stood_on_jan_1(tmp_path, monkeypatch):
+    articles = {"Ann Early": "Ann Early is a member of the Georgia House of Representatives.",
+                "Bo Late": None,                                      # created during the campaign
+                "Cy Redirect": "#REDIRECT [[2020 elections in Georgia]]",
+                "Di Golfer": "Di Golfer is a professional golfer from Georgia."}
+    looked_up = []
+
+    def wiki(session, params):
+        if params.get("list") == "search":
+            surname = params["srsearch"].split('"')[1].lower()
+            return {"query": {"search": [{"title": t} for t in articles if t.lower().endswith(surname)]}}
+        looked_up.append(params["titles"])
+        text = articles[params["titles"]]
+        revisions = [] if text is None else [{"timestamp": "2019-12-31T00:00:00Z", "slots": {"main": {"content": text}}}]
+        return {"query": {"pages": [{"revisions": revisions}]}}
+    monkeypatch.setattr(lq, "wiki", wiki)
+    nominees = pd.DataFrame({"cand_id": ["H1", "H2", "H3", "H4", "H5"], "district_id": ["GA-01"] * 5,
+                             "party": ["D", "R", "D", "R", "D"], "ici": ["C", "C", "O", "O", "I"],
+                             "name": ["EARLY, ANN", "LATE, BO", "REDIRECT, CY", "GOLFER, DI", "EARLY, ANN"]})
+    dest = tmp_path / "quality_2020.csv"
+    lq.lookup_quality(2020, nominees, {"GA": "Georgia"}, dest, {})
+    found = pd.read_csv(dest).set_index("cand_id").quality.to_dict()
+    assert found == {"H1": 1, "H2": 0, "H3": 0, "H4": 0}                 # the incumbent (H5) isn't looked up
+    calls = len(looked_up)
+    lq.lookup_quality(2020, nominees, {"GA": "Georgia"}, dest, {})       # nothing new to look up
+    assert len(looked_up) == calls
 
 
 def test_error_splits_into_national_state_and_district():

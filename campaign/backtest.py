@@ -6,8 +6,10 @@ for comparison), then ask how DCCC's own spending compares with
 the best allocation of the same budget under the spending assumption,
 across a grid of assumptions. The same forecast without the incumbent
 history features (first-term flags, last cycle's overperformance) is scored
-alongside, to show what they add, and so is one whose incumbency effect
-drifts from cycle to cycle, with a term for redrawn lines (fit_drift.py),
+alongside, to show what they add, and so is one without challenger
+quality (with its fit without money, to show how much the two overlap),
+one whose incumbency effect drifts from cycle to cycle, with a term for
+redrawn lines (fit_drift.py),
 two that give incumbents a different edge where the race is expected to be
 close (fit_close.py: its own fitted term, and the drifting edge there only),
 one whose error size is set by each race's features (fit_spread.py),
@@ -70,11 +72,15 @@ def backtest(cycle, races):
     train = pd.concat([r for c, r in races.items() if c < cycle])
     model = fit_baseline(train)
     without = fit_baseline(train, [f for f in FEATURES if f not in HISTORY])
+    no_quality = fit_baseline(train, [f for f in FEATURES if f != "quality"])
+    no_money = fit_baseline(train, [f for f in FEATURES if f != "floor_share"])
     test = races[cycle].copy()
     test["mu"] = predict_margin(test, model)
     test["p"] = norm.cdf(test.mu / model["sigma"])
     test["mu_without"] = predict_margin(test, without)
     test["p_without"] = norm.cdf(test.mu_without / without["sigma"])
+    test["mu_no_quality"] = predict_margin(test, no_quality)
+    test["p_no_quality"] = norm.cdf(test.mu_no_quality / no_quality["sigma"])
     drift = fit_drift(train)
     test["mu_drift"] = predict_margin(test, drift)
     test["p_drift"] = norm.cdf(test.mu_drift / drift["sigma"])
@@ -100,12 +106,14 @@ def backtest(cycle, races):
         return {"brier": float(np.mean((p - r.won) ** 2)),
                 "log_loss": float(-np.mean(r.won * np.log(p) + (1 - r.won) * np.log(1 - p)))}
     scores = {name: score(known, col) for name, col in
-              [("with", "p"), ("without", "p_without"), ("drift", "p_drift"), ("close", "p_close"),
+              [("with", "p"), ("without", "p_without"), ("no_quality", "p_no_quality"), ("drift", "p_drift"),
+               ("close", "p_close"),
                ("hybrid", "p_hybrid"), ("spread", "p_spread"), ("hindsight", "p_hindsight"), ("sept", "p_sept")]
               + [(date, f"p_{date}") for date in CHECKPOINTS]}
     near = known[known.mu.abs() < CLOSE]          # the races the pooled forecast put within CLOSE points
     scores_close = {name: score(near, col) for name, col in
-                    [("with", "p"), ("drift", "p_drift"), ("close", "p_close"), ("hybrid", "p_hybrid")]}
+                    [("with", "p"), ("no_quality", "p_no_quality"), ("drift", "p_drift"), ("close", "p_close"),
+                     ("hybrid", "p_hybrid")]}
 
     budget, cap = float(test.dccc.sum()), CAP_SHARE * float(test.dccc.sum())
     grid = {(scale, half): reallocation_gain(test.mu, model["sigma"], test.dccc, cap, scale_pts=scale, half_saturation=half)
@@ -145,7 +153,8 @@ def backtest(cycle, races):
         timing[half_life] = {"races": t, "gain_retime": retime, "gain_both": both, "model_dccc": x,
                              "belief": implied_belief(test.mu, model["sigma"], landed, HALF_SATURATION / t.e_best,
                                                       weights=test.dccc)}
-    return {"cycle": cycle, "model": model, "drift": drift, "close": close, "spread": spread, "races": test,
+    return {"cycle": cycle, "model": model, "no_money": no_money, "drift": drift, "close": close, "spread": spread,
+            "races": test,
             "calibration": calibration, "brier": scores["with"]["brier"], "scores": scores,
             "scores_close": scores_close, "n_close": len(near), "budget": budget, "gain": gain,
             "grid": {k: v[0] for k, v in grid.items()}, "break_even": break_even, "belief": belief, "seats": seats,

@@ -48,8 +48,9 @@ SENATE_RUN_DOLLARS = 100_000
 
 def load_candidates(cycle, results):
     """district_id, party, cand_id (FEC), disbursements, ici ('I'
-    incumbent, 'C' challenger, 'O' open seat) and FEC name for each matched
-    nominee. `results` is load_results(cycle); pass an empty frame for an
+    incumbent, 'C' challenger, 'O' open seat), FEC name and the name on the
+    ballot (ballot_name; the hand-checked name, or missing, before results)
+    for each matched nominee. `results` is load_results(cycle); pass an empty frame for an
     unfinished cycle."""
     everyone = pd.read_csv(RAW / f"weball{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str,
                            usecols=list(COLUMNS)).rename(columns=COLUMNS)
@@ -57,7 +58,7 @@ def load_candidates(cycle, results):
     fec["fec_party"] = fec.party_code.map(PARTY)
     fec["district_id"] = fec.state + "-" + fec.district.str.zfill(2)
     fec["disbursements"] = pd.to_numeric(fec.disbursements, errors="coerce").fillna(0)
-    columns = ["district_id", "party", "cand_id", "disbursements", "ici", "name"]
+    columns = ["district_id", "party", "cand_id", "disbursements", "ici", "name", "ballot_name"]
     fec_ascii = (fec.name.str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii").str.upper()
                  .str.replace("'", "", regex=False))         # FEC writes both O'HALLERAN and DESPOSITO
     fec["words"] = fec_ascii.str.findall(WORD).map(set)
@@ -84,12 +85,13 @@ def load_candidates(cycle, results):
         current = pd.Series([ici != "I" or (m and not r) for ici, m, r in zip(fec.ici, is_member, for_senate)],
                             index=fec.index)
         top = fec[fec.fec_party.notna() & current].sort_values("disbursements", ascending=False)
-        guess = top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"})[columns]
+        guess = top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"}).assign(
+            ballot_name=None)[columns]
         listed = DATA / f"nominees_{cycle}.csv"
         if not listed.exists():
             return guess
         known = pd.read_csv(listed, dtype=str)
-        actual = known[["district_id", "party", "cand_id", "ici"]].merge(
+        actual = known[["district_id", "party", "cand_id", "ici", "name"]].rename(columns={"name": "ballot_name"}).merge(
             fec.drop_duplicates("cand_id")[["cand_id", "disbursements", "name"]], on="cand_id")
         keep = ~guess.set_index(["district_id", "party"]).index.isin(known.set_index(["district_id", "party"]).index)
         return pd.concat([guess[keep], actual[columns]], ignore_index=True)
