@@ -22,7 +22,11 @@ counts as $0. For a cycle with no published results yet (2026), the top D
 and R spender per district stand in for the nominees, after dropping
 "incumbents" who are no longer House members (see below), except where
 data/nominees_{cycle}.csv names the actual nominees, checked by hand with
-sources, along with their incumbency. That list covers districts where the
+sources, along with their incumbency. FEC lists some current members as
+challengers or open-seat candidates (a dozen in 2026: Self in TX-03,
+Menendez in NJ-08, Casar running in the new TX-37), so a nominee who is a
+current member from the state, with the same party, surname and first name
+or nickname, is counted as the incumbent. That list covers districts where the
 top spender had no House report through June 30: a Senate run (Weil,
 FL-06; Cotton, AR-04), a campaign that ended (Chatzky, NY-17), or a primary
 loser. Several of the right nominees were incumbents (Clyde, GA-09;
@@ -35,6 +39,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from .lookup_quality import name_parts, same_first
+
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "fec"
 SHEETS = Path(__file__).resolve().parents[1] / "data" / "raw" / "presidential"
 DATA = Path(__file__).resolve().parents[1] / "data"
@@ -44,6 +50,15 @@ PARTY = {"DEM": "D", "DFL": "D", "REP": "R"}
 SUFFIXES = {"JR", "SR", "II", "III", "IV", "MR", "MRS", "MS", "DR", "HON", "THE", "MD"}
 WORD = re.compile(r"[A-Z]{2,}")
 SENATE_RUN_DOLLARS = 100_000
+
+
+def same_member(fec_name, member):
+    """Whether FEC's name is the member's: 'ONDER JR, ROBERT FRANK' is Bob Onder, but 'HOOPER, JAMES D' is
+    not John James."""
+    firsts, _, surname = name_parts(fec_name)
+    member_firsts, _, member_surname = name_parts(member)
+    return bool(member_surname) and member_surname[-1] in surname and \
+        any(same_first(a, b) for a in firsts for b in member_firsts)
 
 
 def load_candidates(cycle, results):
@@ -72,19 +87,31 @@ def load_candidates(cycle, results):
         # members leaving for the Senate (Hinson, IA-02; Barr, KY-06), and
         # keeps members running on a new district number (Bera in CA-03). A
         # Senate run counts if its FEC ID was issued this cycle ("S6" for
-        # 2026) and it has spent $100K+, which skips old or abandoned bids.
-        members = {(row[0][:2], WORD.findall(row[1].upper())[-1])
-                   for row in csv.reader((SHEETS / f"lines_{cycle}.csv").open(encoding="utf-8"))
-                   if len(row) > 1 and DISTRICT.match(row[0].strip()) and WORD.findall(row[1].upper())}
+        # 2026) and it has spent $100K+, which skips old or abandoned bids,
+        # and if it isn't flagged as a senator's: "S6" also starts IDs from
+        # 2006, and Bob Menendez's still spends, which made his son (NJ-08)
+        # look like a Senate candidate.
+        sheet = [row for row in csv.reader((SHEETS / f"lines_{cycle}.csv").open(encoding="utf-8"))
+                 if len(row) > 2 and DISTRICT.match(row[0].strip()) and WORD.findall(row[1].upper())]
+        members = {(row[0][:2], WORD.findall(row[1].upper())[-1]) for row in sheet}
         senate = everyone[everyone.cand_id.str.startswith(f"S{str(cycle)[-1]}")
-                          & (pd.to_numeric(everyone.disbursements, errors="coerce") >= SENATE_RUN_DOLLARS)]
+                          & (pd.to_numeric(everyone.disbursements, errors="coerce") >= SENATE_RUN_DOLLARS)
+                          & (everyone.ici != "I")]
         running = {(s, WORD.findall(n.split(",")[0].upper())[-1], n.split(",")[1].strip()[:1])
                    for s, n in zip(senate.state, senate.name) if "," in n and WORD.findall(n.split(",")[0].upper())}
         is_member = [any((s, w) in members for w in words) for s, words in zip(fec.state, fec.words)]
         for_senate = [any((s, w, i) in running for w in words) for s, words, i in zip(fec.state, fec.words, fec.initial)]
+        # FEC also lists some current members as challengers or open-seat
+        # candidates (Self, TX-03; Menendez, NJ-08; Onder, MO-03; Casar on his
+        # new TX-37). A nominee is the incumbent when a member from the state
+        # has the same party, surname and first name or nickname.
+        sitting = [not r and any(row[0][:2] == s and row[2].strip("() ") == party and same_member(name, row[1])
+                                 for row in sheet)
+                   for s, party, name, r in zip(fec.state, fec.fec_party, fec.name, for_senate)]
+        fec.loc[sitting, "ici"] = "I"
         current = pd.Series([ici != "I" or (m and not r) for ici, m, r in zip(fec.ici, is_member, for_senate)],
                             index=fec.index)
-        top = fec[fec.fec_party.notna() & current].sort_values("disbursements", ascending=False)
+        top = fec[fec.fec_party.notna() & current].sort_values("disbursements", ascending=False, kind="stable")
         guess = top.drop_duplicates(["district_id", "fec_party"]).rename(columns={"fec_party": "party"}).assign(
             ballot_name=None)[columns]
         listed = DATA / f"nominees_{cycle}.csv"

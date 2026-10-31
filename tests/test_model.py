@@ -390,6 +390,29 @@ def test_hand_checked_nominees_replace_the_top_spender_guess(tmp_path, monkeypat
     assert picked.ici["R"] == "I"
 
 
+def test_sitting_members_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypatch):
+    def weball_row(cand_id, name, ici, party, disbursed, state, district):
+        row = [""] * 30
+        row[0], row[1], row[2], row[4], row[7], row[18], row[19] = cand_id, name, ici, party, disbursed, state, district
+        return "|".join(row)
+    (tmp_path / "weball26.txt").write_text("\n".join([
+        weball_row("H6AA01001", "ONDER JR, ROBERT FRANK", "C", "REP", "500000", "AA", "01"),   # goes by Bob
+        weball_row("H6AA02001", "HOOPER, JAMES D", "C", "REP", "400000", "AA", "02"),          # not John James
+        weball_row("H6AA03001", "MENENDEZ, ROBERT J.", "I", "DEM", "300000", "AA", "03"),
+        weball_row("S6AA00001", "MENENDEZ, ROBERT", "I", "DEM", "800000", "AA", "00"),         # his father's old ID
+        weball_row("H6AA04001", "RUNNER, KIM", "I", "REP", "600000", "AA", "04"),
+        weball_row("S6AA00002", "RUNNER, KIM", "O", "REP", "900000", "AA", "00"),              # running for Senate
+        weball_row("H6AA04002", "HOPEFUL, LEE", "C", "REP", "100000", "AA", "04")]) + "\n")
+    (tmp_path / "lines_2026.csv").write_text("District,Incumbent,Party\nAA-01,Bob Onder,(R)\nAA-03,Rob Menendez,(D)\n"
+                                             "AA-04,Kim Runner,(R)\nAA-05,John James,(R)\n")
+    for attr in ("RAW", "SHEETS", "DATA"):
+        monkeypatch.setattr(lc, attr, tmp_path)
+    picked = lc.load_candidates(2026, pd.DataFrame()).set_index("district_id")
+    assert picked.cand_id.to_dict() == {"AA-01": "H6AA01001", "AA-02": "H6AA02001", "AA-03": "H6AA03001",
+                                        "AA-04": "H6AA04002"}
+    assert picked.ici.to_dict() == {"AA-01": "I", "AA-02": "C", "AA-03": "I", "AA-04": "C"}
+
+
 
 def test_household_index_reweights_missing_items_and_reads_june(tmp_path, monkeypatch):
     months = pd.date_range("2019-01-01", "2020-12-01", freq="MS")
