@@ -1,0 +1,263 @@
+{
+ "cycle": 2026,
+ "frozen_at": "2026-11-02T21:03:03+00:00",
+ "commit": "89aacc5482c9d50af3ef198f49e271753dbda2ef",
+ "generic_ballot": {
+  "generic_ballot": 8.4,
+  "source": "RealClearPolling average, Oct 9-25 2026 (as of 2026-10-26)"
+ },
+ "known_limits": [
+  "Louisiana's 6 races keep the top-spender guess: its page lists no nominees.",
+  "CA-40 is Republican against Republican, but the model has a Democrat there and gives that side about 29%.",
+  "NC-11's Republican replaced the nominee after June 30, so she shows $0 of early money and the race reads too Democratic, especially under symmetric money.",
+  "NRCC's $339,000 of coordinated money from before June isn't in the race totals: FEC's API, which lists those filings, was rate-limited."
+ ],
+ "specs": {
+  "baseline": {
+   "features": [
+    "pvi",
+    "d_incumbent",
+    "open_seat",
+    "floor_share",
+    "quality",
+    "fresh_d",
+    "fresh_r",
+    "over_inc",
+    "over_open"
+   ],
+   "coef": {
+    "intercept": -1.9100858121492477,
+    "pvi": 1.6049335764636379,
+    "d_incumbent": 9.952328851441049,
+    "open_seat": 4.601549121419589,
+    "floor_share": 2.0443949755366058,
+    "quality": 1.8195744215133558,
+    "fresh_d": -3.1620076195471625,
+    "fresh_r": 0.2802925427139321,
+    "over_inc": 0.22687052931437077,
+    "over_open": 0.23520683676263082
+   },
+   "se": {
+    "intercept": 0.6116480626160519,
+    "pvi": 0.025123313896288323,
+    "d_incumbent": 1.0292370692991295,
+    "open_seat": 0.6489124852983169,
+    "floor_share": 0.19358035060604367,
+    "quality": 0.47902236748429616,
+    "fresh_d": 0.7375202543624951,
+    "fresh_r": 0.5147227228199507,
+    "over_inc": 0.04111836174020618,
+    "over_open": 0.058324905718711136
+   },
+   "sigma": 7.585916174076246,
+   "sigma_national": 2.8050966689690737,
+   "sigma_state": 3.472535452217344,
+   "sigma_district": 6.133437405806298,
+   "national_df": 6,
+   "n": 2626,
+   "cycles": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+   ],
+   "seats": {
+    "mean": 242.16182208752986,
+    "p10": 225,
+    "p50": 241,
+    "p90": 260,
+    "need": 218,
+    "p_majority": 0.9653524006285087
+   }
+  },
+  "symmetric": {
+   "features": [
+    "pvi",
+    "d_incumbent",
+    "open_seat",
+    "money_odds",
+    "quality",
+    "fresh_d",
+    "fresh_r",
+    "over_inc",
+    "over_open"
+   ],
+   "coef": {
+    "intercept": -3.7914132791264716,
+    "pvi": 1.5413596508982825,
+    "d_incumbent": 6.667427231615067,
+    "open_seat": 3.650338962875541,
+    "money_odds": 1.788744021525147,
+    "quality": 1.122139060323977,
+    "fresh_d": -2.6200255468471885,
+    "fresh_r": 0.5892246779895659,
+    "over_inc": 0.20890352482993232,
+    "over_open": 0.20414464228972726
+   },
+   "se": {
+    "intercept": 0.49786699139040097,
+    "pvi": 0.026524156140103054,
+    "d_incumbent": 1.075919377757585,
+    "open_seat": 0.6537188222595219,
+    "money_odds": 0.14010743807666645,
+    "quality": 0.4683940696914039,
+    "fresh_d": 0.713936835404634,
+    "fresh_r": 0.5136938983313524,
+    "over_inc": 0.039966827392940205,
+    "over_open": 0.058159659367867766
+   },
+   "sigma": 7.454945814897742,
+   "sigma_national": 2.8921824315816425,
+   "sigma_state": 3.38022411143654,
+   "sigma_district": 5.982105218230026,
+   "national_df": 6,
+   "n": 2626,
+   "cycles": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+   ],
+   "seats": {
+    "mean": 239.9666280119846,
+    "p10": 223,
+    "p50": 239,
+    "p90": 258,
+    "need": 218,
+    "p_majority": 0.9511594414289225
+   }
+  },
+  "surplus": {
+   "features": [
+    "pvi",
+    "d_incumbent",
+    "open_seat",
+    "floor_share",
+    "quality",
+    "fresh_d",
+    "fresh_r",
+    "over_inc",
+    "over_open",
+    "surplus"
+   ],
+   "coef": {
+    "intercept": -2.369085765710485,
+    "pvi": 1.6120529068067273,
+    "d_incumbent": 8.922821429068954,
+    "open_seat": 4.206889759211474,
+    "floor_share": 1.4387755949683905,
+    "quality": 1.653784319900743,
+    "fresh_d": -3.476270552172359,
+    "fresh_r": 0.5812418333471379,
+    "over_inc": 0.22391925050300462,
+    "over_open": 0.20824155302615938,
+    "surplus": 0.7460110363081075
+   },
+   "se": {
+    "intercept": 0.6101091202285972,
+    "pvi": 0.0246782285516289,
+    "d_incumbent": 1.0757640138037152,
+    "open_seat": 0.6567730573212488,
+    "floor_share": 0.20419204672682412,
+    "quality": 0.4705993771685024,
+    "fresh_d": 0.7449125618899367,
+    "fresh_r": 0.5061120099564722,
+    "over_inc": 0.04074688838680817,
+    "over_open": 0.057309118898646684,
+    "surplus": 0.11120954969063909
+   },
+   "sigma": 7.513273857625425,
+   "sigma_national": 2.7636891409601336,
+   "sigma_state": 3.466481331985065,
+   "sigma_district": 6.065872861082378,
+   "national_df": 6,
+   "n": 2626,
+   "cycles": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+   ],
+   "seats": {
+    "mean": 240.67453249127212,
+    "p10": 224,
+    "p50": 240,
+    "p90": 258,
+    "need": 218,
+    "p_majority": 0.9603941290527883
+   }
+  },
+  "symmetric_surplus": {
+   "features": [
+    "pvi",
+    "d_incumbent",
+    "open_seat",
+    "money_odds",
+    "quality",
+    "fresh_d",
+    "fresh_r",
+    "over_inc",
+    "over_open",
+    "surplus"
+   ],
+   "coef": {
+    "intercept": -3.7204852495419347,
+    "pvi": 1.5562486507118942,
+    "d_incumbent": 6.6072877483504335,
+    "open_seat": 3.5696084573865017,
+    "money_odds": 1.481985645801477,
+    "quality": 1.1394824212095254,
+    "fresh_d": -2.8998214299579215,
+    "fresh_r": 0.7110620450863154,
+    "over_inc": 0.21022844376532043,
+    "over_open": 0.19345293685470158,
+    "surplus": 0.4403254538101002
+   },
+   "se": {
+    "intercept": 0.5037472021312716,
+    "pvi": 0.02710478437362496,
+    "d_incumbent": 1.0892897853103187,
+    "open_seat": 0.6545934662682865,
+    "money_odds": 0.16634723712167335,
+    "quality": 0.46701916254346665,
+    "fresh_d": 0.7259262664282504,
+    "fresh_r": 0.5096314421292176,
+    "over_inc": 0.040047723077828536,
+    "over_open": 0.05766292765448926,
+    "surplus": 0.12199705259491334
+   },
+   "sigma": 7.433751445052041,
+   "sigma_national": 2.853826188449696,
+   "sigma_state": 3.3918189194726835,
+   "sigma_district": 5.967570783027139,
+   "national_df": 6,
+   "n": 2626,
+   "cycles": [
+    2012,
+    2014,
+    2016,
+    2018,
+    2020,
+    2022,
+    2024
+   ],
+   "seats": {
+    "mean": 239.47034610359964,
+    "p10": 222,
+    "p50": 238,
+    "p90": 258,
+    "need": 218,
+    "p_majority": 0.9499619313216554
+   }
+  }
+ }
+}

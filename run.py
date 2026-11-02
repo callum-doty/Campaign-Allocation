@@ -16,6 +16,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 from campaign.backtest import backtest  # noqa: E402
 from campaign.build_races import build_races  # noqa: E402
 from campaign.channel_mix import channel_mix  # noqa: E402
+from campaign.coordinated_allocation import coordinated_allocation  # noqa: E402
 from campaign.fetch import fetch  # noqa: E402
 from campaign.forecast import forecast  # noqa: E402
 from campaign.load_media_markets import load_media_markets  # noqa: E402
@@ -50,7 +51,7 @@ def main():
     table = national_table()
     national = {**national_test(table), "table": table, "sept": national_test(table.assign(miss=table.miss_sept)),
                 "economics": economics_only(table)}
-    report(races, backtests, fc, games, media, mixes, national)
+    report(races, backtests, fc, games, media, mixes, national, coordinated_allocation(races, backtests, fc))
 
     for b in backtests:
         print(f"{b['cycle']}: Brier {b['brier']:.3f}, gain from reallocating DCCC's money {b['gain']:+.2f} seats")

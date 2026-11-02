@@ -7,7 +7,7 @@ load_expenditures.py.
 Coordinated party spending is not in the FEC's independent-expenditure
 file. It was small through 2024 (DCCC: $5.4M in 2024), but after NRSC v.
 FEC (June 2026) struck down the limits it is how DCCC spends in 2026, so
-2026 committee money is missing here.
+2026 committee money is missing here; it's in load_coordinated.py.
 
 Given a decision date, outside money is also totalled over what had reached
 voters by then (outside_aug_d, outside_aug_r for an Aug 31 date): all a

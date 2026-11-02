@@ -12,6 +12,7 @@ from scipy.stats import norm
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from campaign import load_candidates as lc  # noqa: E402
+from campaign import load_coordinated as lco  # noqa: E402
 from campaign import fall_drift as fd  # noqa: E402
 from campaign import load_early_vote as lev  # noqa: E402
 from campaign import household_index as hi  # noqa: E402
@@ -27,7 +28,8 @@ from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.fit_close import close_inc, fit_close  # noqa: E402
 from campaign.fit_drift import fit_drift, random_walk  # noqa: E402
 from campaign.fit_spread import fit_spread, race_sigma  # noqa: E402
-from campaign.freeze_forecast import freeze, money_terms, score  # noqa: E402
+from campaign.fetch import schedule_f_rows  # noqa: E402
+from campaign.freeze_forecast import freeze, money_signal, money_terms, score  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign import lookup_quality as lq  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
@@ -638,3 +640,38 @@ def test_score_compares_the_same_close_races_and_can_take_out_the_national_miss(
     assert scores.log_loss["shifted"] != pytest.approx(scores.log_loss["baseline"])
     p = norm.cdf(20.0 / 8.0)                                                   # "far" is judged on a and b, not its own close set
     assert scores.log_loss_close["far"] == pytest.approx(-np.log(p))
+
+
+def test_memo_rows_on_schedule_f_are_not_counted_twice():
+    row = ["SF"] + [""] * 43
+    paid, memo = list(row), list(row)
+    paid[2], paid[28] = "SF-1", "100.00"
+    memo[2], memo[28], memo[42] = "SF-1-10000", "100.00", "X"
+    other = ["SB2"] + [""] * 43
+    lines = [",".join(r) for r in (paid, memo, other)]
+    assert [r["tran_id"] for r in schedule_f_rows(lines)] == ["SF-1"]
+
+
+def test_coordinated_money_goes_to_the_nominee_race_and_splits_only_media_from_mail(tmp_path, monkeypatch):
+    purposes = ["MEDIA BUY", "MEDIA", "ADVERTISING", "MEDIA BUY MEDIA PRODUCTION", "MAIL SERVICES", "POSTAGE/ PRINTING",
+                "MEDIA PRODUCTION", "TRAVEL"]
+    rows = pd.DataFrame({"bucket": "dccc", "cand_id": ["H1", "H2"] + ["H1"] * 6, "state": "FL",
+                         "district": ["23", "07"] + ["23"] * 6, "amount": 1.0, "date": 20261001, "purpose": purposes})
+    rows.to_csv(tmp_path / "coordinated_2026.csv", index=False)
+    monkeypatch.setattr(lco, "RAW", tmp_path)
+    monkeypatch.setattr(lco, "load_results", lambda cycle: pd.DataFrame())
+    monkeypatch.setattr(lco, "load_candidates", lambda cycle, results: pd.DataFrame(
+        {"cand_id": ["H1"], "party": ["D"], "district_id": ["FL-25"]}))
+    out = lco.load_coordinated(2026)
+    assert out.district_id.tolist() == ["FL-25", "FL-07"] + ["FL-25"] * 6     # a new number, then a primary loser's filing
+    assert out.channel.tolist() == ["Media"] * 4 + ["Mail"] * 2 + ["Other"] * 2
+
+
+def test_money_signal_compares_races_by_who_spent_after_taking_out_the_miss():
+    frozen = pd.DataFrame({"district_id": list("abcd"), "mu_baseline": 10.0, "p_baseline": 0.9,
+                           "dccc_coordinated": [0.0, 1.0, 0.0, 1.0], "nrcc_coordinated": [0.0, 0.0, 1.0, 1.0]})
+    margin = pd.Series([12.0, 10.0, 8.0, 6.0], index=list("abcd"))           # the average miss is -1
+    signal = money_signal(frozen, margin).loc["80-99% D"]
+    assert signal.resid["neither"] == pytest.approx(3.0)
+    assert signal.resid["both"] == pytest.approx(-3.0)
+    assert signal.n.sum() == 4
