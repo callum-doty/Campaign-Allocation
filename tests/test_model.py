@@ -27,6 +27,7 @@ from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.fit_close import close_inc, fit_close  # noqa: E402
 from campaign.fit_drift import fit_drift, random_walk  # noqa: E402
 from campaign.fit_spread import fit_spread, race_sigma  # noqa: E402
+from campaign.freeze_forecast import freeze, money_terms, score  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign import lookup_quality as lq  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
@@ -600,3 +601,40 @@ def test_incomplete_states_borrow_the_nearest_complete_year_but_not_2020(monkeyp
     assert lev.early_vote_share(2024)["NJ"] == pytest.approx(0.13)   # 2022 and 2024 incomplete; 2020 not a stand-in
     assert lev.early_vote_share(2020)["NJ"] == pytest.approx(0.93)
     assert lev.early_vote_share(2024)["CO"] == pytest.approx(0.96)
+
+
+def money_rows(raised_d, raised_r, spent_d=0.0, spent_r=0.0):
+    zero = np.zeros(len(raised_d))
+    return pd.DataFrame({"raised_jun_d": raised_d, "raised_jun_r": raised_r, "spent_jun_d": spent_d, "spent_jun_r": spent_r,
+                         "own_jun_d": zero, "own_jun_r": zero, "outside_aug_d": zero, "outside_aug_r": zero})
+
+
+def test_money_terms_treat_the_two_parties_alike():
+    terms = money_terms(money_rows(np.array([1.5e6, 0.0]), np.array([0.0, 1.5e6])))
+    assert terms.money_odds[0] == pytest.approx(-terms.money_odds[1])          # floor_share gives -0.007 and -5.0
+    assert terms.surplus[0] == pytest.approx(-terms.surplus[1])
+    spent = money_terms(money_rows(np.array([1.5e6]), np.array([1.5e6]), np.array([1.3e6]), np.array([2.0e6])))
+    assert spent.money_odds[0] == pytest.approx(0.0)                           # raising the same, spending differently
+    assert spent.surplus[0] == pytest.approx(np.log(210_000 / 10_000))         # overspending counts as no surplus
+
+
+def test_a_freeze_is_not_overwritten(tmp_path):
+    (tmp_path / "freeze.csv").write_text("already here")
+    with pytest.raises(SystemExit):
+        freeze({}, stem=tmp_path / "freeze")
+    assert (tmp_path / "freeze.csv").read_text() == "already here"
+
+
+def test_score_compares_the_same_close_races_and_can_take_out_the_national_miss():
+    mu = np.array([5.0, -5.0, 30.0, -30.0])
+    frozen = pd.DataFrame({"district_id": list("abcd") + ["no result"], "mu_baseline": [*mu, 0.0],
+                           "mu_shifted": [*(mu + 4.0), 0.0], "mu_far": [20.0, -20.0, 30.0, -30.0, 0.0]})
+    fit = {"sigma": 8.0, "sigma_national": 3.0}
+    margin = pd.Series([6.0, -4.0, 31.0, -29.0], index=list("abcd"))
+    scores = score(frozen, margin, {"baseline": fit, "shifted": fit, "far": fit})
+    assert scores.national_miss["baseline"] == pytest.approx(1.0)
+    assert scores.national_miss["shifted"] == pytest.approx(-3.0)
+    assert scores.log_loss_within["shifted"] == pytest.approx(scores.log_loss_within["baseline"])
+    assert scores.log_loss["shifted"] != pytest.approx(scores.log_loss["baseline"])
+    p = norm.cdf(20.0 / 8.0)                                                   # "far" is judged on a and b, not its own close set
+    assert scores.log_loss_close["far"] == pytest.approx(-np.log(p))
