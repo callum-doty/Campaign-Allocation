@@ -1,0 +1,575 @@
+cycle,district_id,party,name,title,views_jan_aug
+2018,AR-02,D,Clarke Tucker,Clarke Tucker,11588.0
+2018,AR-02,R,French Hill,French Hill (politician),23523.0
+2018,AZ-01,D,Tom O'Halleran,Tom O'Halleran,26105.0
+2018,AZ-01,R,Wendy Rogers,,
+2018,AZ-02,D,Ann Kirkpatrick,Ann Kirkpatrick,34100.0
+2018,AZ-02,R,Lea Peterson,Lea Márquez Peterson,0.0
+2018,AZ-06,D,Anita Malik,,
+2018,AZ-06,R,David Schweikert,David Schweikert,26107.0
+2018,AZ-08,D,Hiral Tipirneni,Hiral Tipirneni,27732.0
+2018,AZ-08,R,Debbie Lesko,Debbie Lesko,73303.0
+2018,CA-01,D,Audrey Denney,,
+2018,CA-01,R,Doug Malfa,Doug LaMalfa,25261.0
+2018,CA-04,D,Jessica Morse,,
+2018,CA-04,R,Tom Mcclintock,Tom McClintock,34380.0
+2018,CA-10,D,Josh Harder,Josh Harder,169.0
+2018,CA-10,R,Jeff Denham,Jeff Denham,49996.0
+2018,CA-21,D,Tj Cox,TJ Cox,47.0
+2018,CA-21,R,David Valadao,David Valadao,39920.0
+2018,CA-22,D,Andrew Janz,,
+2018,CA-22,R,Devin Nunes,Devin Nunes,882356.0
+2018,CA-25,D,Katie Hill,Katie Hill,2560.0
+2018,CA-25,R,Steve Knight,Steve Knight (politician),35608.0
+2018,CA-39,D,Gil Cisneros,Gil Cisneros,16105.0
+2018,CA-39,R,Young Kim,Young Kim,906.0
+2018,CA-42,D,Julia Peacock,,
+2018,CA-42,R,Ken Calvert,Ken Calvert,20368.0
+2018,CA-45,D,Katie Porter,Katie Porter,265.0
+2018,CA-45,R,Mimi Walters,Mimi Walters,66566.0
+2018,CA-48,D,Harley Rouda,Harley Rouda,916.0
+2018,CA-48,R,Dana Rohrabacher,Dana Rohrabacher,197794.0
+2018,CA-50,D,Ammar Campa-Najjar,Ammar Campa-Najjar,39035.0
+2018,CA-50,R,Duncan Hunter,Duncan D. Hunter,319009.0
+2018,CO-03,D,Diane Bush,Diane Mitsch Bush,5091.0
+2018,CO-03,R,Scott Tipton,Scott Tipton,14652.0
+2018,CO-06,D,Jason Crow,Jason Crow,198.0
+2018,CO-06,R,Mike Coffman,Mike Coffman,43854.0
+2018,FL-06,D,Nancy Soderberg,Nancy Soderberg,13563.0
+2018,FL-06,R,Michael Waltz,,
+2018,FL-15,D,Kristen Carlson,,
+2018,FL-15,R,Ross Spano,Ross Spano,6816.0
+2018,FL-16,D,David Shapiro,,
+2018,FL-16,R,Vern Buchanan,Vern Buchanan,27123.0
+2018,FL-18,D,Lauren Baer,,
+2018,FL-18,R,Brian Mast,Brian Mast,80642.0
+2018,FL-25,D,Mary Flores,Mary Barzee Flores,6330.0
+2018,FL-25,R,Mario Diaz-Balart,,
+2018,FL-26,D,Debbie Mucarsel-Powell,Debbie Mucarsel-Powell,0.0
+2018,FL-26,R,Carlos Curbelo,Carlos Curbelo,41148.0
+2018,GA-06,D,Lucy Mcbath,Lucy McBath,18086.0
+2018,GA-06,R,Karen Handel,Karen Handel,65702.0
+2018,GA-07,D,Carolyn Bourdeaux,Carolyn Bourdeaux,44.0
+2018,GA-07,R,Rob Woodall,Rob Woodall,20134.0
+2018,IA-01,D,Abby Finkenauer,Abby Finkenauer,22357.0
+2018,IA-01,R,Rod Blum,Rod Blum,29067.0
+2018,IA-03,D,Cindy Axne,Cindy Axne,75.0
+2018,IA-03,R,David Young,David Young (Iowa politician),19646.0
+2018,IL-06,D,Sean Casten,Sean Casten,1800.0
+2018,IL-06,R,Peter Roskam,Peter Roskam,51145.0
+2018,IL-12,D,Brendan Kelly,,
+2018,IL-12,R,Mike Bost,Mike Bost,21376.0
+2018,IL-13,D,Betsy Londrigan,,
+2018,IL-13,R,Rodney Davis,,
+2018,IL-14,D,Lauren Underwood,Lauren Underwood,8913.0
+2018,IL-14,R,Randy\ Hultgren,Randy Hultgren,27141.0
+2018,KS-02,D,Paul Davis,Paul Davis (Kansas politician),12353.0
+2018,KS-02,R,Steve Watkins,Steve Watkins,1232.0
+2018,KS-03,D,Sharice Davids,Sharice Davids,870.0
+2018,KS-03,R,Kevin Yoder,Kevin Yoder,47514.0
+2018,KY-06,D,Amy Mcgrath,Amy McGrath,84537.0
+2018,KY-06,R,Andy Barr,Andy Barr,1017.0
+2018,ME-02,D,Jared Golden,Jared Golden,16139.0
+2018,ME-02,R,Bruce Poliquin,Bruce Poliquin,23343.0
+2018,MI-03,D,Cathy Albro,,
+2018,MI-03,R,Justin Amash,Justin Amash,76748.0
+2018,MI-06,D,Matt Longjohn,Matthew Longjohn,0.0
+2018,MI-06,R,Fred Upton,Fred Upton,38362.0
+2018,MI-08,D,Elissa Slotkin,Elissa Slotkin,18737.0
+2018,MI-08,R,Mike Bishop,Mike Bishop (politician),21463.0
+2018,MI-11,D,Haley Stevens,Haley Stevens,130.0
+2018,MI-11,R,Lena Epstein,,
+2018,MN-01,D,Dan Feehan,,
+2018,MN-01,R,Jim Hagedorn,Jim Hagedorn,5637.0
+2018,MN-02,D,Angie Craig,Angie Craig,3300.0
+2018,MN-02,R,Jason Lewis,Jason Lewis (Minnesota politician),33842.0
+2018,MN-03,D,Dean Phillips,Dean Phillips,163.0
+2018,MN-03,R,Erik Paulsen,Erik Paulsen,40593.0
+2018,MN-07,D,Collin Peterson,Collin Peterson,30999.0
+2018,MN-07,R,Dave Hughes,,
+2018,MN-08,D,Joe Radinovich,Joe Radinovich,11017.0
+2018,MN-08,R,Pete Stauber,Pete Stauber,3968.0
+2018,MO-02,D,Cort Vanostran,,
+2018,MO-02,R,Ann Wagner,Ann Wagner,30772.0
+2018,NC-02,D,Linda Coleman,,
+2018,NC-02,R,George Holding,George Holding,20633.0
+2018,NC-06,D,Ryan Watts,,
+2018,NC-06,R,Mark Walker,Mark Walker (North Carolina politician),23611.0
+2018,NC-08,D,Frank Mcneill,,
+2018,NC-08,R,Richard Hudson,Richard Hudson (American politician),8315.0
+2018,NC-09,D,Dan Mccready,,
+2018,NC-09,R,Mark Harris,Mark Harris (North Carolina politician),12598.0
+2018,NC-13,D,Kathy Manning,Kathy Manning,0.0
+2018,NC-13,R,Ted Budd,Ted Budd,18191.0
+2018,NE-02,D,Kara Eastman,,
+2018,NE-02,R,Don Bacon,Don Bacon,658.0
+2018,NH-01,D,Chris Pappas,Chris Pappas (American politician),0.0
+2018,NH-01,R,Eddie Edwards,,
+2018,NJ-02,D,Jeff Drew,Jeff Van Drew,11852.0
+2018,NJ-02,R,Seth Grossman,,
+2018,NJ-03,D,Andy Kim,Andy Kim,60252.0
+2018,NJ-03,R,Tom Macarthur,Tom MacArthur,30427.0
+2018,NJ-05,D,Josh Gottheimer,Josh Gottheimer,36654.0
+2018,NJ-05,R,John Mccann,,
+2018,NJ-07,D,Tom Malinowski,Tom Malinowski,29172.0
+2018,NJ-07,R,Leonard Lance,Leonard Lance,51715.0
+2018,NJ-11,D,Mikie Sherrill,Mikie Sherrill,27574.0
+2018,NJ-11,R,Jay Webber,Jay Webber,12628.0
+2018,NM-02,D,Xochitl Small,Xochitl Torres Small,161.0
+2018,NM-02,R,Yvette Herrell,Yvette Herrell,5879.0
+2018,NV-03,D,Susie Lee,Susie Lee,275.0
+2018,NV-03,R,Danny Tarkanian,Danny Tarkanian,49231.0
+2018,NV-04,D,Steven Horsford,Steven Horsford,12849.0
+2018,NV-04,R,Cresent Hardy,Cresent Hardy,11222.0
+2018,NY-01,D,Perry Gershon,,
+2018,NY-01,R,Lee Zeldin,Lee Zeldin,63939.0
+2018,NY-02,D,Liuba Shirley,,
+2018,NY-02,R,Peter King,,
+2018,NY-11,D,Max Rose,Max Rose,12935.0
+2018,NY-11,R,Dan Donovan,Dan Donovan (politician),50293.0
+2018,NY-19,D,Antonio Delgado,Antonio Delgado,4157.0
+2018,NY-19,R,John Faso,John Faso,46380.0
+2018,NY-22,D,Anthony Brindisi,Anthony Brindisi,11815.0
+2018,NY-22,R,Claudia Tenney,Claudia Tenney,85698.0
+2018,NY-24,D,Dana Balter,,
+2018,NY-24,R,John Katko,John Katko,26949.0
+2018,OH-01,D,Aftab Pureval,Aftab Pureval,1137.0
+2018,OH-01,R,Steve Chabot,Steve Chabot,32507.0
+2018,OH-10,D,Theresa Gasper,,
+2018,OH-10,R,Mike Turner,Mike Turner,26266.0
+2018,OH-12,D,Danny O'Connor,,
+2018,OH-12,R,Troy Balderson,Troy Balderson,84636.0
+2018,OH-14,D,Betsy Rader,,
+2018,OH-14,R,David Joyce,David Joyce (politician),14004.0
+2018,OK-05,D,Kendra Horn,Kendra Horn,0.0
+2018,OK-05,R,Steve Russell,Steve Russell (politician),35049.0
+2018,PA-01,D,Henry Wallace,,
+2018,PA-01,R,Brian Fitzpatrick,Brian Fitzpatrick (American politician),34873.0
+2018,PA-07,D,Susan Wild,Susan Wild,325.0
+2018,PA-07,R,Martin Nothstein,Marty Nothstein,11812.0
+2018,PA-08,D,Matthew Cartwright,Matt Cartwright,21782.0
+2018,PA-08,R,John Chrin,,
+2018,PA-10,D,George Scott,,
+2018,PA-10,R,Scott Perry,Scott Perry,1468.0
+2018,PA-14,D,Bibiana Boerio,Bibiana Boerio,6582.0
+2018,PA-14,R,Guy Reschenthaler,Guy Reschenthaler,17732.0
+2018,PA-17,D,Conor Lamb,Conor Lamb,716636.0
+2018,PA-17,R,Keith Rothfus,Keith Rothfus,39695.0
+2018,SC-01,D,Joe Cunningham,Joe Cunningham (American politician),0.0
+2018,SC-01,R,Katie Arrington,Katie Arrington,97713.0
+2018,TX-02,D,Todd Litton,,
+2018,TX-02,R,Dan Crenshaw,Dan Crenshaw,378.0
+2018,TX-03,D,Lorie Burch,,
+2018,TX-03,R,Van Taylor,Van Taylor,8470.0
+2018,TX-06,D,Jana Sanchez,,
+2018,TX-06,R,Ron Wright,Ron Wright (politician),73.0
+2018,TX-07,D,Lizzie Fletcher,Lizzie Fletcher,134.0
+2018,TX-07,R,John Culberson,John Culberson,31187.0
+2018,TX-10,D,Mike Siegel,,
+2018,TX-10,R,Michael Mccaul,Michael McCaul,37406.0
+2018,TX-21,D,Joseph Kopser,,
+2018,TX-21,R,Chip Roy,Chip Roy,265.0
+2018,TX-22,D,Sri Kulkarni,,
+2018,TX-22,R,Pete Olson,Pete Olson,16907.0
+2018,TX-23,D,Gina Jones,Gina Ortiz Jones,23464.0
+2018,TX-23,R,Will Hurd,Will Hurd,148982.0
+2018,TX-24,D,Jan Mcdowell,,
+2018,TX-24,R,Kenny Marchant,Kenny Marchant,9927.0
+2018,TX-25,D,Julie Oliver,,
+2018,TX-25,R,Roger Williams,Roger Williams (Texas politician),0.0
+2018,TX-31,D,Mj\ Hegar,,
+2018,TX-31,R,John Carter,John Carter (Texas politician),28991.0
+2018,TX-32,D,Colin Allred,Colin Allred,29681.0
+2018,TX-32,R,Pete Sessions,Pete Sessions,58441.0
+2018,UT-02,D,Shireen Ghorbani,Shireen Ghorbani,130.0
+2018,UT-02,R,Chris Stewart,Chris Stewart (Utah politician),0.0
+2018,UT-04,D,Ben Mcadams,Ben McAdams,13897.0
+2018,UT-04,R,Mia Love,Mia Love,169802.0
+2018,VA-02,D,Elaine Luria,Elaine Luria,153.0
+2018,VA-02,R,Scott Taylor,Scott Taylor (politician),69757.0
+2018,VA-05,D,Leslie Cockburn,Leslie Cockburn,77921.0
+2018,VA-05,R,Denver Riggleman,Denver Riggleman,1221.0
+2018,VA-07,D,Abigail Spanberger,Abigail Spanberger,1520.0
+2018,VA-07,R,Dave Brat,Dave Brat,79674.0
+2018,VA-10,D,Jennifer Wexton,Jennifer Wexton,20526.0
+2018,VA-10,R,Barbara Comstock,Barbara Comstock,69582.0
+2018,WA-03,D,Carolyn Long,,
+2018,WA-03,R,Jaime Beutler,Jaime Herrera Beutler,37498.0
+2018,WA-05,D,Lisa Brown,,
+2018,WA-05,R,Cathy Rodgers,Cathy McMorris Rodgers,71326.0
+2018,WA-08,D,Kim Schrier,Kim Schrier,98.0
+2018,WA-08,R,Dino Rossi,Dino Rossi,32529.0
+2018,WI-01,D,Randy Bryce,,
+2018,WI-01,R,Bryan Steil,Bryan Steil,175.0
+2018,WI-06,D,Dan Kohl,,
+2018,WI-06,R,Glenn Grothman,Glenn Grothman,19150.0
+2022,AZ-01,D,Jevin Hodge,Jevin Hodge,73.0
+2022,AZ-01,R,David Schweikert,David Schweikert,36508.0
+2022,AZ-02,D,Tom O'Halleran,Tom O'Halleran,39586.0
+2022,AZ-02,R,Eli Crane,Eli Crane,374.0
+2022,AZ-04,D,Greg Stanton,Greg Stanton,29906.0
+2022,AZ-04,R,Kelly Cooper,,
+2022,AZ-06,D,Kirsten Engel,Kirsten Engel,9184.0
+2022,AZ-06,R,Juan Ciscomani,Juan Ciscomani,120.0
+2022,CA-03,D,Kermit Jones,,
+2022,CA-03,R,Kevin Kiley,Kevin Kiley (politician),39726.0
+2022,CA-09,D,Josh Harder,Josh Harder,25779.0
+2022,CA-09,R,Tom Patti,Tom Patti,8414.0
+2022,CA-13,D,Adam Gray,Adam Gray,10555.0
+2022,CA-13,R,John Duarte,John Duarte (politician),0.0
+2022,CA-22,D,Rudy Salas,Rudy Salas,11817.0
+2022,CA-22,R,David Valadao,David Valadao,54096.0
+2022,CA-25,D,Raul Ruiz,Raul Ruiz (politician),27096.0
+2022,CA-25,R,Brian Hawkins,,
+2022,CA-27,D,Christy Smith,,
+2022,CA-27,R,Mike Garcia,Mike Garcia (politician),43141.0
+2022,CA-40,D,Asif Mahmood,,
+2022,CA-40,R,Young Kim,Young Kim,99672.0
+2022,CA-41,D,Will Rollins,,
+2022,CA-41,R,Ken Calvert,Ken Calvert,24676.0
+2022,CA-45,D,Jay Chen,,
+2022,CA-45,R,Michelle Steel,Michelle Steel,74293.0
+2022,CA-47,D,Katie Porter,Katie Porter,285145.0
+2022,CA-47,R,Scott Baugh,Scott Baugh,11620.0
+2022,CA-49,D,Mike Levin,Mike Levin,32747.0
+2022,CA-49,R,Brian Maryott,,
+2022,CO-07,D,Brittany Pettersen,Brittany Pettersen,12079.0
+2022,CO-07,R,Erik Aadland,,
+2022,CO-08,D,Yadira Caraveo,Yadira Caraveo,9269.0
+2022,CO-08,R,Barbara Kirkmeyer,Barbara Kirkmeyer,8942.0
+2022,CT-02,D,Joe Courtney,Joe Courtney (politician),14596.0
+2022,CT-02,R,Mike France,Mike France (politician),3079.0
+2022,CT-05,D,Jahana Hayes,Jahana Hayes,24363.0
+2022,CT-05,R,George Logan,George Logan (Connecticut politician),7155.0
+2022,FL-02,D,Al Lawson,Al Lawson,27771.0
+2022,FL-02,R,Neal Dunn,Neal Dunn,15553.0
+2022,FL-07,D,Karen Green,,
+2022,FL-07,R,Cory Mills,Cory Mills,1116.0
+2022,FL-13,D,Eric Lynn,,
+2022,FL-13,R,Anna Luna,Anna Paulina Luna,1189.0
+2022,FL-15,D,Alan Cohn,Alan Cohn,5612.0
+2022,FL-15,R,Laurel Lee,Laurel Lee,341.0
+2022,FL-23,D,Jared Moskowitz,Jared Moskowitz,14716.0
+2022,FL-23,R,Joe Budd,,
+2022,FL-27,D,Annette Taddeo,Annette Taddeo,34176.0
+2022,FL-27,R,Maria Salazar,María Elvira Salazar,117229.0
+2022,GA-02,D,Sanford Bishop,Sanford Bishop,29157.0
+2022,GA-02,R,Chris West,,
+2022,IA-01,D,Christina Bohannan,Christina Bohannan,8719.0
+2022,IA-01,R,Mariannette Miller-Meeks,Mariannette Miller-Meeks,36105.0
+2022,IA-02,D,Liz Mathis,Liz Mathis,7923.0
+2022,IA-02,R,Ashley Hinson,Ashley Hinson,54002.0
+2022,IA-03,D,Cynthia Axne,,
+2022,IA-03,R,Zach Nunn,Zach Nunn,12538.0
+2022,IL-06,D,Sean Casten,Sean Casten,90026.0
+2022,IL-06,R,Keith Pekau,,
+2022,IL-11,D,Bill Foster,Bill Foster (politician),19055.0
+2022,IL-11,R,Catalina Lauf,,
+2022,IL-13,D,Nikki Budzinski,Nikki Budzinski,6221.0
+2022,IL-13,R,Regan Deering,Regan Deering,48.0
+2022,IL-14,D,Lauren Underwood,Lauren Underwood,41685.0
+2022,IL-14,R,Scott Gryder,,
+2022,IL-17,D,Eric Sorensen,Eric Sorensen (politician),46.0
+2022,IL-17,R,Esther King,,
+2022,IN-01,D,Frank Mrvan,Frank J. Mrvan,24455.0
+2022,IN-01,R,Jennifer-Ruth Green,,
+2022,KS-03,D,Sharice Davids,Sharice Davids,83607.0
+2022,KS-03,R,Amanda Adkins,Amanda Adkins (politician),14084.0
+2022,KY-03,D,Morgan Mcgarvey,Morgan McGarvey,18082.0
+2022,KY-03,R,Stuart Ray,,
+2022,MD-06,D,David Trone,David Trone,43751.0
+2022,MD-06,R,Neil Parrott,Neil Parrott,9908.0
+2022,ME-02,D,Jared Golden,Jared Golden,52524.0
+2022,ME-02,R,Bruce Poliquin,Bruce Poliquin,18237.0
+2022,MI-03,D,Hillary Scholten,Hillary Scholten,1151.0
+2022,MI-03,R,John Gibbs,,
+2022,MI-07,D,Elissa Slotkin,Elissa Slotkin,89334.0
+2022,MI-07,R,Tom Barrett,Tom Barrett (Michigan politician),12034.0
+2022,MI-08,D,Daniel Kildee,Dan Kildee,25742.0
+2022,MI-08,R,Paul Junge,,
+2022,MI-10,D,Carl Marlinga,,
+2022,MI-10,R,John James,John James (Michigan politician),18.0
+2022,MN-02,D,Angie Craig,Angie Craig,44126.0
+2022,MN-02,R,Tyler Kistner,,
+2022,MT-01,D,Monica Tranel,Monica Tranel,13740.0
+2022,MT-01,R,Ryan Zinke,Ryan Zinke,97779.0
+2022,NC-01,D,Don Davis,Don Davis (North Carolina politician),0.0
+2022,NC-01,R,Sandy Smith,,
+2022,NC-06,D,Kathy Manning,Kathy Manning,27874.0
+2022,NC-06,R,Christian Castelli,,
+2022,NC-11,D,Jasmine Beach-Ferrara,,
+2022,NC-11,R,Chuck Edwards,Chuck Edwards,132301.0
+2022,NC-13,D,Wiley Nickel,Wiley Nickel,12381.0
+2022,NC-13,R,Bo Hines,Bo Hines,100611.0
+2022,NC-14,D,Jeff Jackson,Jeff Jackson (politician),27002.0
+2022,NC-14,R,Pat Harrigan,Pat Harrigan,0.0
+2022,NE-02,D,Tony Vargas,Tony Vargas,13116.0
+2022,NE-02,R,Don Bacon,Don Bacon,45722.0
+2022,NH-01,D,Chris Pappas,Chris Pappas (American politician),0.0
+2022,NH-01,R,Karoline Leavitt,Karoline Leavitt,0.0
+2022,NH-02,D,Ann Kuster,Annie Kuster,15442.0
+2022,NH-02,R,Robert Burns,,
+2022,NJ-03,D,Andy Kim,Andy Kim,11292.0
+2022,NJ-03,R,Bob Healey,,
+2022,NJ-05,D,Josh Gottheimer,Josh Gottheimer,45911.0
+2022,NJ-05,R,Frank Pallotta,,
+2022,NJ-07,D,Tom Malinowski,Tom Malinowski,66706.0
+2022,NJ-07,R,Thomas Kean,Thomas Kean Jr.,22067.0
+2022,NM-01,D,Melanie Stansbury,Melanie Stansbury,40243.0
+2022,NM-01,R,Michelle Holmes,,
+2022,NM-02,D,Gabriel Vasquez,Gabe Vasquez,218.0
+2022,NM-02,R,Yvette Herrell,Yvette Herrell,53858.0
+2022,NM-03,D,Teresa Fernandez,,
+2022,NM-03,R,Alexis Johnson,,
+2022,NV-01,D,Dina Titus,Dina Titus,35187.0
+2022,NV-01,R,Mark Robertson,,
+2022,NV-03,D,Susie Lee,Susie Lee,22467.0
+2022,NV-03,R,April Becker,,
+2022,NV-04,D,Steven Horsford,Steven Horsford,24823.0
+2022,NV-04,R,Sam Peters,,
+2022,NY-01,D,Bridget Fleming,,
+2022,NY-01,R,Nicholas Lalota,Nick LaLota,149.0
+2022,NY-02,D,Jackie Gordon,,
+2022,NY-02,R,Andrew Garbarino,Andrew Garbarino,26544.0
+2022,NY-03,D,Robert Zimmerman,Robert Zimmerman,8328.0
+2022,NY-03,R,George Santos,George Santos,711.0
+2022,NY-04,D,Laura Gillen,Laura Gillen,3726.0
+2022,NY-04,R,Anthony D'Esposito,Anthony D'Esposito,0.0
+2022,NY-17,D,Sean Maloney,Sean Patrick Maloney,110048.0
+2022,NY-17,R,Michael Lawler,,
+2022,NY-18,D,Patrick Ryan,Pat Ryan (politician),36140.0
+2022,NY-18,R,Colin Schmitt,Colin Schmitt,8167.0
+2022,NY-19,D,Josh Riley,,
+2022,NY-19,R,Marcus Molinaro,Marc Molinaro,47227.0
+2022,NY-22,D,Francis Conole,,
+2022,NY-22,R,Brandon Williams,Brandon Williams (politician),8.0
+2022,OH-01,D,Greg Landsman,Greg Landsman,158.0
+2022,OH-01,R,Steve Chabot,Steve Chabot,25422.0
+2022,OH-09,D,Marcy Kaptur,Marcy Kaptur,61789.0
+2022,OH-09,R,Majewski Majewski,,
+2022,OH-13,D,Emilia Sykes,Emilia Sykes,12167.0
+2022,OH-13,R,Madison Gilbert,Madison Gesiotto Gilbert,0.0
+2022,OR-04,D,Val Hoyle,Val Hoyle,12142.0
+2022,OR-04,R,Alek Skarlatos,Alek Skarlatos,137768.0
+2022,OR-05,D,Jamie Mcleod-Skinner,Jamie McLeod-Skinner,21664.0
+2022,OR-05,R,Lori Chavez-Deremer,Lori Chavez-DeRemer,132.0
+2022,OR-06,D,Andrea Salinas,Andrea Salinas,12450.0
+2022,OR-06,R,Mike Erickson,Mike Erickson,10683.0
+2022,PA-01,D,Ashley Ehasz,,
+2022,PA-01,R,Brian Fitzpatrick,Brian Fitzpatrick (American politician),64890.0
+2022,PA-04,D,Madeleine Dean,Madeleine Dean,46115.0
+2022,PA-04,R,Christian Nascimento,,
+2022,PA-06,D,Chrissy Houlahan,Chrissy Houlahan,33729.0
+2022,PA-06,R,Guy Ciarrocchi,,
+2022,PA-07,D,Susan Wild,Susan Wild,34958.0
+2022,PA-07,R,Lisa Scheller,,
+2022,PA-08,D,Matt Cartwright,Matt Cartwright,31992.0
+2022,PA-08,R,Jim Bognet,,
+2022,PA-12,D,Summer Lee,Summer Lee,61441.0
+2022,PA-12,R,Mike Doyle,Mike Doyle (American politician),23425.0
+2022,PA-17,D,Chris Deluzio,Chris Deluzio,146.0
+2022,PA-17,R,Jeremy Shaffer,,
+2022,RI-02,D,Seth Magaziner,Seth Magaziner,15869.0
+2022,RI-02,R,Allan Fung,Allan Fung,29295.0
+2022,TN-05,D,Heidi Campbell,,
+2022,TN-05,R,Andy Ogles,Andy Ogles,469.0
+2022,TX-03,D,Sandeep Srivastava,,
+2022,TX-03,R,Keith Self,Keith Self,219.0
+2022,TX-15,D,Michelle Vallejo,,
+2022,TX-15,R,Monica Cruz,Monica De La Cruz,0.0
+2022,TX-28,D,Henry Cuellar,Henry Cuellar,170018.0
+2022,TX-28,R,Cassy Garcia,,
+2022,TX-34,D,Vicente Gonzalez,Vicente Gonzalez (American politician),0.0
+2022,TX-34,R,Mayra Flores,Mayra Flores,300556.0
+2022,VA-02,D,Elaine Luria,Elaine Luria,360274.0
+2022,VA-02,R,Jen Kiggans,Jen Kiggans,19906.0
+2022,VA-07,D,Abigail Spanberger,Abigail Spanberger,96760.0
+2022,VA-07,R,Yesli Vega,,
+2022,WA-03,D,Marie Perez,Marie Gluesenkamp Perez,0.0
+2022,WA-03,R,Joe Kent,,
+2022,WA-08,D,Kim Schrier,Kim Schrier,32785.0
+2022,WA-08,R,Matt Larkin,,
+2022,WA-10,D,Marilyn Strickland,Marilyn Strickland,30702.0
+2022,WA-10,R,Keith Swank,,
+2022,WI-01,D,Ann Roe,,
+2022,WI-01,R,Bryan Steil,Bryan Steil,26387.0
+2022,WI-03,D,Brad Pfaff,Brad Pfaff,7091.0
+2022,WI-03,R,Derrick Orden,Derrick Van Orden,929.0
+2024,AL-02,D,Shomari Figures,,
+2024,AL-02,R,Caroleene Dobson,,
+2024,AZ-01,D,Amish Shah,Amish Shah,17209.0
+2024,AZ-01,R,David Schweikert,David Schweikert,70119.0
+2024,AZ-02,D,Jonathan Nez,Jonathan Nez,23984.0
+2024,AZ-02,R,Elijah Crane,Eli Crane,118210.0
+2024,AZ-04,D,Greg Stanton,Greg Stanton,33579.0
+2024,AZ-04,R,Kelly Cooper,,
+2024,AZ-06,D,Kirsten Engel,Kirsten Engel,15816.0
+2024,AZ-06,R,Juan Ciscomani,Juan Ciscomani,56206.0
+2024,CA-03,D,Jessica Morse,,
+2024,CA-03,R,Kevin Kiley,Kevin Kiley (politician),59336.0
+2024,CA-09,D,Josh Harder,Josh Harder,27873.0
+2024,CA-09,R,Kevin Lincoln,Kevin Lincoln (politician),16477.0
+2024,CA-13,D,Adam Gray,Adam Gray,14321.0
+2024,CA-13,R,John Duarte,John Duarte (politician),30630.0
+2024,CA-22,D,Rudy Salas,Rudy Salas,16069.0
+2024,CA-22,R,David Valadao,David Valadao,43205.0
+2024,CA-27,D,George Whitesides,George T. Whitesides,16386.0
+2024,CA-27,R,Mike Garcia,Mike Garcia (politician),46307.0
+2024,CA-40,D,Joe Kerr,,
+2024,CA-40,R,Young Kim,Young Kim,69197.0
+2024,CA-41,D,Will Rollins,,
+2024,CA-41,R,Ken Calvert,Ken Calvert,43650.0
+2024,CA-45,D,Derek Tran,,
+2024,CA-45,R,Michelle Steel,Michelle Steel,77193.0
+2024,CA-47,D,Dave Min,Dave Min,42535.0
+2024,CA-47,R,Scott Baugh,Scott Baugh,16796.0
+2024,CA-49,D,Mike Levin,Mike Levin,40626.0
+2024,CA-49,R,Matt Gunderson,,
+2024,CO-03,D,Adam Frisch,Adam Frisch,36603.0
+2024,CO-03,R,Jeff Hurd,,
+2024,CO-05,D,River Gassen,,
+2024,CO-05,R,Jeff Crank,,
+2024,CO-07,D,Brittany Pettersen,Brittany Pettersen,35324.0
+2024,CO-07,R,Sergei Matveyuk,,
+2024,CO-08,D,Yadira Caraveo,Yadira Caraveo,35857.0
+2024,CO-08,R,Gabe Evans,Gabe Evans,15548.0
+2024,CT-05,D,Jahana Hayes,Jahana Hayes,25533.0
+2024,CT-05,R,George Logan,George Logan (Connecticut politician),11138.0
+2024,FL-13,D,Whitney Fox,,
+2024,FL-13,R,Anna Luna,Anna Paulina Luna,694664.0
+2024,FL-15,D,Pat\ Kemp,,
+2024,FL-15,R,Laurel Lee,Laurel Lee,53868.0
+2024,FL-23,D,Jared Moskowitz,Jared Moskowitz,199241.0
+2024,FL-23,R,Joe\ Kaufman,,
+2024,FL-27,D,Lucia Baez-Geller,,
+2024,FL-27,R,Maria Salazar,María Elvira Salazar,89646.0
+2024,FL-28,D,Phil Ehr,,
+2024,FL-28,R,Carlos Gimenez,Carlos A. Gimenez,548.0
+2024,GA-02,D,Sanford Bishop,Sanford Bishop,32529.0
+2024,GA-02,R,Wayne Johnson,,
+2024,IA-01,D,Christina Bohannan,Christina Bohannan,13182.0
+2024,IA-01,R,Mariannette Miller-Meeks,Mariannette Miller-Meeks,60810.0
+2024,IA-02,D,Sarah Corkery,,
+2024,IA-02,R,Ashley Hinson,Ashley Hinson,33111.0
+2024,IA-03,D,Lanon Baccam,,
+2024,IA-03,R,Zachary Nunn,Zach Nunn,36687.0
+2024,IL-06,D,Sean Casten,Sean Casten,31346.0
+2024,IL-06,R,Niki Conforti,,
+2024,IL-13,D,Nikki Budzinski,Nikki Budzinski,21002.0
+2024,IL-13,R,Joshua Loyd,,
+2024,IL-17,D,Eric Sorensen,Eric Sorensen (politician),29352.0
+2024,IL-17,R,Joe Mcgraw,,
+2024,IN-01,D,Frank Mrvan,Frank J. Mrvan,17965.0
+2024,IN-01,R,Randy Niemeyer,,
+2024,KS-03,D,Sharice Davids,Sharice Davids,64018.0
+2024,KS-03,R,Prasanth Reddy,,
+2024,MD-06,D,April Delaney,,
+2024,MD-06,R,Neil Parrott,Neil Parrott,13892.0
+2024,ME-02,D,Jared Golden,Jared Golden,105555.0
+2024,ME-02,R,Austin Theriault,Austin Theriault,28949.0
+2024,MI-03,D,Hillary Scholten,Hillary Scholten,45342.0
+2024,MI-03,R,Paul Hudson,,
+2024,MI-04,D,Jessica Swartz,,
+2024,MI-04,R,Bill Huizenga,Bill Huizenga,25315.0
+2024,MI-07,D,Curtis Hertel,Curtis Hertel Jr.,15963.0
+2024,MI-07,R,Tom Barrett,Tom Barrett (Michigan politician),16997.0
+2024,MI-08,D,Kristen Rivet,Kristen McDonald Rivet,18318.0
+2024,MI-08,R,Paul Junge,,
+2024,MI-10,D,Carl Marlinga,,
+2024,MI-10,R,John James,John James (Michigan politician),92686.0
+2024,MN-02,D,Angie Craig,Angie Craig,71607.0
+2024,MN-02,R,Joe Teirab,,
+2024,MT-01,D,Monica Tranel,Monica Tranel,17639.0
+2024,MT-01,R,Ryan Zinke,Ryan Zinke,92113.0
+2024,NC-01,D,Donald Davis,Don Davis (North Carolina politician),37445.0
+2024,NC-01,R,Laurie Buckhout,Laurie Buckhout,4002.0
+2024,NE-02,D,Tony Vargas,Tony Vargas,16810.0
+2024,NE-02,R,Don Bacon,Don Bacon,54928.0
+2024,NH-01,D,Chris Pappas,Chris Pappas (American politician),36694.0
+2024,NH-01,R,Russell Prescott,Russell Prescott,5540.0
+2024,NH-02,D,Maggie Goodlander,Maggie Goodlander,28654.0
+2024,NH-02,R,Lily Williams,,
+2024,NJ-03,D,Herb Conaway,Herb Conaway,14890.0
+2024,NJ-03,R,Rajesh Mohan,,
+2024,NJ-07,D,Sue Altman,,
+2024,NJ-07,R,Thomas Kean,Thomas Kean Jr.,44192.0
+2024,NJ-09,D,Nellie Pou,Nellie Pou,9107.0
+2024,NJ-09,R,Billy Prempeh,,
+2024,NM-01,D,Melanie Stansbury,Melanie Stansbury,40905.0
+2024,NM-01,R,Steve Jones,,
+2024,NM-02,D,Gabe Vasquez,Gabe Vasquez,33821.0
+2024,NM-02,R,Yvette Herrell,Yvette Herrell,24383.0
+2024,NV-01,D,Dina Titus,Dina Titus,35070.0
+2024,NV-01,R,Mark Robertson,,
+2024,NV-03,D,Susie Lee,Susie Lee,32133.0
+2024,NV-03,R,Drew Johnson,,
+2024,NV-04,D,Steven Horsford,Steven Horsford,43713.0
+2024,NV-04,R,John Lee,,
+2024,NY-01,D,John Avlon,John Avlon,167059.0
+2024,NY-01,R,Nick Lalota,Nick LaLota,64145.0
+2024,NY-02,D,Rob Lubin,,
+2024,NY-02,R,Andrew Garbarino,Andrew Garbarino,26512.0
+2024,NY-03,D,Thomas Suozzi,,
+2024,NY-03,R,Michael Lipetri,,
+2024,NY-04,D,Laura Gillen,,
+2024,NY-04,R,Anthony D'Esposito,Anthony D'Esposito,51090.0
+2024,NY-17,D,Mondaire Jones,Mondaire Jones,77431.0
+2024,NY-17,R,Michael Lawler,,
+2024,NY-18,D,Patrick Ryan,Pat Ryan (politician),82909.0
+2024,NY-18,R,Alison Esposito,Alison Esposito,178.0
+2024,NY-19,D,Josh Riley,,
+2024,NY-19,R,Marcus Molinaro,Marc Molinaro,56229.0
+2024,NY-22,D,John Mannion,John Mannion (American politician),14643.0
+2024,NY-22,R,Brandon Williams,Brandon Williams (politician),39603.0
+2024,OH-01,D,Greg Landsman,Greg Landsman,35725.0
+2024,OH-01,R,Orlando Sonza,,
+2024,OH-09,D,Marcy Kaptur,Marcy Kaptur,63700.0
+2024,OH-09,R,Derek Merrin,Derek Merrin,10176.0
+2024,OH-13,D,Emilia Sykes,Emilia Sykes,40491.0
+2024,OH-13,R,Kevin Coughlin,Kevin Coughlin,9539.0
+2024,OR-04,D,Val Hoyle,Val Hoyle,20053.0
+2024,OR-04,R,Monique Despain,,
+2024,OR-05,D,Janelle Bynum,Janelle Bynum,30955.0
+2024,OR-05,R,Lori Chavez-Deremer,Lori Chavez-DeRemer,44509.0
+2024,OR-06,D,Andrea Salinas,Andrea Salinas,19381.0
+2024,OR-06,R,Mike Erickson,Mike Erickson,7057.0
+2024,PA-01,D,Ashley Ehasz,,
+2024,PA-01,R,Brian Fitzpatrick,Brian Fitzpatrick (American politician),65899.0
+2024,PA-07,D,Susan Wild,Susan Wild,45965.0
+2024,PA-07,R,Ryan Mackenzie,Ryan Mackenzie,11960.0
+2024,PA-08,D,Matt Cartwright,Matt Cartwright,36639.0
+2024,PA-08,R,Rob Bresnahan,Rob Bresnahan,0.0
+2024,PA-10,D,Janelle Stelson,Janelle Stelson,251.0
+2024,PA-10,R,Scott Perry,Scott Perry,855.0
+2024,PA-17,D,Christopher Deluzio,Chris Deluzio,37004.0
+2024,PA-17,R,Rob Mercuri,Rob Mercuri,7191.0
+2024,RI-02,D,Seth Magaziner,Seth Magaziner,26437.0
+2024,RI-02,R,Stephen Corvi,,
+2024,TX-03,D,Sandeep Srivastava,,
+2024,TX-03,R,Keith Self,Keith Self,25046.0
+2024,TX-15,D,Michelle Vallejo,,
+2024,TX-15,R,Monica Cruz,Monica De La Cruz,39150.0
+2024,TX-28,D,Henry Cuellar,Henry Cuellar,125559.0
+2024,TX-28,R,Jay Furman,,
+2024,TX-34,D,Vicente Gonzalez,Vicente Gonzalez (American politician),0.0
+2024,TX-34,R,Mayra Flores,Mayra Flores,70937.0
+2024,VA-02,D,Missy Smasal,,
+2024,VA-02,R,Jennifer Kiggans,Jen Kiggans,43164.0
+2024,VA-05,D,Gloria Witt,,
+2024,VA-05,R,John Mcguire,John McGuire (Virginia politician),70410.0
+2024,VA-07,D,Eugene Vindman,Eugene Vindman,61924.0
+2024,VA-07,R,Derrick Anderson,,
+2024,VA-10,D,Suhas Subramanyam,Suhas Subramanyam,32008.0
+2024,VA-10,R,Mike Clancy,,
+2024,WA-03,D,Marie Perez,Marie Gluesenkamp Perez,173957.0
+2024,WA-03,R,Joe Kent,,
+2024,WA-05,D,Carmela Conroy,Carmela Conroy,0.0
+2024,WA-05,R,Michael Baumgartner,Michael Baumgartner,14265.0
+2024,WA-08,D,Kim Schrier,Kim Schrier,23556.0
+2024,WA-08,R,Carmen Goers,,
+2024,WI-01,D,Peter Barca,Peter Barca,6516.0
+2024,WI-01,R,Bryan Steil,Bryan Steil,30875.0
+2024,WI-03,D,Rebecca Cooke,Rebecca Cooke (politician),426.0
+2024,WI-03,R,Derrick Orden,Derrick Van Orden,82056.0
+2024,WI-08,D,Kristin Lyerly,,
+2024,WI-08,R,Tony Wied,Tony Wied,43.0

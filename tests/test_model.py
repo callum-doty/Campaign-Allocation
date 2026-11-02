@@ -22,6 +22,7 @@ from campaign import load_results as lres  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
+from campaign.export_dataset import display_name  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.fit_close import close_inc, fit_close  # noqa: E402
 from campaign.fit_drift import fit_drift, random_walk  # noqa: E402
@@ -400,7 +401,7 @@ def test_last_winners_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypa
         weball_row("H2AA01001", "SCHNEIDER, BRADLEY SCOTT", "C", "DEM", "900000", "AA", "01"),   # won in 2012
         weball_row("H0AA01002", "DOLD, ROBERT J", "C", "REP", "800000", "AA", "01"),             # lost in 2012
         weball_row("H2AA02001", "KHANNA, ROHIT", "C", "DEM", "700000", "AA", "02"),              # lost a D-vs-D race
-        weball_row("H0AA02002", "HONDA, MICHAEL", "I", "DEM", "600000", "AA", "02"),
+        weball_row("H0AA02002", "HONDA, MICHAEL", "C", "DEM", "600000", "AA", "02"),             # won it, spent less
         weball_row("H4AA03001", "HOOPER, JAMES", "C", "REP", "500000", "AA", "03"),              # not John James
         weball_row("H2AA03002", "JONES, PAT", "C", "DEM", "400000", "AA", "03")]) + "\n")
     mit = [(2012, "01", "BRAD SCHNEIDER", "DEMOCRAT", 120), (2012, "01", "ROBERT DOLD", "REPUBLICAN", 100),
@@ -417,8 +418,73 @@ def test_last_winners_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypa
     assert lres.load_results(2012).set_index("district_id").winner.to_dict() == {
         "AA-01": "BRAD SCHNEIDER", "AA-02": "MIKE HONDA", "AA-03": "JOHN JAMES"}
     picked = lc.load_candidates(2014, lres.load_results(2014)).set_index(["district_id", "party"])
-    assert picked.ici.to_dict() == {("AA-01", "D"): "I", ("AA-01", "R"): "C", ("AA-02", "D"): "C",
+    assert picked.ici.to_dict() == {("AA-01", "D"): "I", ("AA-01", "R"): "C", ("AA-02", "D"): "I",
                                     ("AA-03", "R"): "C", ("AA-03", "D"): "C"}
+    assert picked.cand_id[("AA-02", "D")] == "H0AA02002"         # the sitting member speaks for the party, not the bigger spender
+
+
+def test_close_names_catch_misspellings_but_not_other_people():
+    assert lc.close_name("DENHAM, JEFF", "JEFF DENHEM")
+    assert lc.close_name("DELARUO, ROSA L", "ROSA L DELAURO")
+    assert lc.close_name("ESTY, ELIZABETH", "ELIZABETH H ETSY")
+    assert lc.close_name("LAMALFA, DOUG", "DOUG LA MALFA")
+    assert lc.close_name("DEAN, MADELEINE", "MADELEINE DEAN CUNNANE")
+    assert lc.close_name("HIGGINS, CAPTAIN CLAY", "CLAY HIGGINS")
+    assert lc.close_name("JOHNSON, JAMES MICHAEL", '\\"MIKE\\" JOHNSON')
+    assert not lc.close_name("JOHN, RICHARD MICHAEL MR.", '\\"MIKE\\" JOHNSON')
+    assert not lc.close_name("DEAN, MARK", "MADELEINE DEAN CUNNANE")
+    assert display_name("MCGUIRE, JOHN J. MR. III") == "JOHN J. MCGUIRE"
+
+
+def test_nominees_get_their_own_fec_record(tmp_path, monkeypatch):
+    def weball_row(cand_id, name, ici, party, disbursed, state, district):
+        row = [""] * 30
+        row[0], row[1], row[2], row[4], row[7], row[18], row[19] = cand_id, name, ici, party, disbursed, state, district
+        return "|".join(row)
+    (tmp_path / "weball14.txt").write_text("\n".join([
+        weball_row("H0AA01001", "DENHAM, JEFF", "I", "REP", "900000", "AA", "01"),                # JEFF DENHEM on the ballot
+        weball_row("H0AA02001", "FLEMING, JOHN C", "I", "REP", "2700000", "AA", "02"),            # not "RICK" JOHN
+        weball_row("H4AA02002", "JOHN, RICHARD", "O", "REP", "190000", "AA", "02"),
+        weball_row("H0AA09001", "SANCHEZ, LINDA", "I", "DEM", "1000000", "AA", "09"),             # filed under her old district
+        weball_row("H0AA04001", "SANCHEZ, LORETTA", "I", "DEM", "2000000", "AA", "04"),
+        weball_row("H4AA05001", "MCAFFREY, ALVIS", "C", "DEM", "67000", "AA", "05"),              # one person, two records
+        weball_row("H4AA05002", "MCAFFREY, AL", "O", "DEM", "700", "AA", "05"),
+        weball_row("H4AA08001", "MARTINEZ, DIEGO", "C", "REP", "2000", "AA", "08")]) + "\n")     # no record for Daniel
+    (tmp_path / "weball16.txt").write_text(weball_row("H2AA06001", "SELF, KEITH ALAN", "I", "REP", "800000", "AA", "06") + "\n"
+                                           + weball_row("H6AA08001", "SELF, KENNETH", "C", "REP", "800", "AA", "08") + "\n")
+    (tmp_path / "ccl14.txt").write_text("H2AA06001|2014|2014|C1|H|P|1\nH6AA08001|2014|2014|C2|H|P|2\n")
+    (tmp_path / "reports_2014.csv").write_text(
+        "committee_id,report_type,coverage_end_date,receipt_date,file_number,total_receipts_ytd,"
+        "total_disbursements_ytd,candidate_contribution_ytd,loans_made_by_candidate_ytd\n"
+        "C1,Q2,2014-06-30T00:00:00,2014-07-15,1,554000,516000,0,0\nC2,Q2,2014-06-30T00:00:00,2014-07-15,2,900,800,0,0\n")
+    mit = [(2012, "06", "KEITH SELF", "REPUBLICAN"),
+           (2014, "01", "JEFF DENHEM", "REPUBLICAN"), (2014, "02", '\\"RICK\\" JOHN', "REPUBLICAN"),
+           (2014, "03", "LINDA SANCHEZ", "DEMOCRAT"), (2014, "04", "LORETTA SANCHEZ", "DEMOCRAT"),
+           (2014, "05", "AL MCAFFREY", "DEMOCRAT"), (2014, "06", "KEITH SELF", "REPUBLICAN"),
+           (2014, "07", "DANIEL MARTINEZ", "REPUBLICAN")]
+    pd.DataFrame([{"year": y, "stage": "GEN", "mode": "TOTAL", "runoff": False, "special": False, "writein": False, "state_po": "AA",
+                   "district": d, "candidate": c, "party": p, "candidatevotes": 100} for y, d, c, p in mit]).to_csv(tmp_path / "house.csv", index=False)
+    for module in (lc, lem):
+        monkeypatch.setattr(module, "RAW", tmp_path)
+    monkeypatch.setattr(lres, "RAW", tmp_path / "house.csv")
+    picked = lc.load_candidates(2014, lres.load_results(2014)).set_index("district_id")
+    assert picked.cand_id.to_dict() == {"AA-01": "H0AA01001", "AA-02": "H4AA02002", "AA-03": "H0AA09001", "AA-04": "H0AA04001",
+                                        "AA-05": "H4AA05001", "AA-06": "H2AA06001"}
+    assert picked.ici["AA-02"] == "O"
+    assert picked.ici["AA-06"] == "I" and picked.disbursements["AA-06"] == 516000      # won in 2012; June 30 spending stands in
+
+
+def test_later_files_link_only_campaigns_with_no_earlier_link(tmp_path, monkeypatch):
+    (tmp_path / "reports_2018.csv").write_text(
+        "committee_id,report_type,coverage_end_date,receipt_date,file_number,total_receipts_ytd,"
+        "total_disbursements_ytd,candidate_contribution_ytd,loans_made_by_candidate_ytd\n"
+        "C1,Q2,2018-06-30T00:00:00,2018-07-15,1,100,40,0,0\nC2,Q2,2018-06-30T00:00:00,2018-07-15,2,900,70,0,0\n"
+        "C3,Q2,2018-06-30T00:00:00,2018-07-15,3,300,50,0,0\n")
+    (tmp_path / "ccl18.txt").write_text("H1|2018|2018|C1|H|P|1\n")
+    (tmp_path / "ccl22.txt").write_text("H1|2022|2022|C2|H|P|2\nH2|2022|2022|C3|H|P|3\n")
+    monkeypatch.setattr(lem, "RAW", tmp_path)
+    money = lem.load_early_money(2018)
+    assert money.raised.to_dict() == {"H1": 100, "H2": 300}
 
 
 def test_sitting_members_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypatch):

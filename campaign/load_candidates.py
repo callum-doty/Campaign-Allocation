@@ -13,17 +13,29 @@ whole FEC name, not just the part before the comma, catches married names
 Apostrophes are dropped on both sides, because FEC spells the same kind of
 name both ways ("O'HALLERAN, TOM" but "DESPOSITO, ANTHONY P"). FEC's party
 code is sometimes unknown ("UNK"); a name match in the district is enough
-then. After redistricting FEC often keeps a member's old district number
-(Schweikert ran in AZ-01 in 2022 but is filed under AZ-06), so a nominee
-with no match in the district is matched elsewhere in the state when the
-surname and first initial both agree. FEC also flags some members running
+then. Either file can misspell a name or shorten it (MIT's JEFF DENHEM and
+DOUG LA MALFA, FEC's DELARUO for DeLauro, MADELEINE DEAN CUNNANE filed as
+DEAN), so within the district a surname a few letters off counts if a given
+name agrees too. After redistricting FEC often keeps a member's old district
+number (Schweikert ran in AZ-01 in 2022 but is filed under AZ-06), so a
+nominee with no match in the district is matched elsewhere in the state when
+the surname and first name or nickname both agree. Where a district holds
+several matches, FEC's surname and a first initial agreeing beats the surname
+appearing anywhere in the FEC name (the ballot's "RICK" JOHN isn't FLEMING,
+JOHN C); after that the record with the most money counts, since FEC can
+hold two for one person (AL MCAFFREY). FEC also flags some members running
 again as challengers or open-seat candidates, apparently by their later
 status (Schneider, Garcia, Gallego and Shea-Porter, who all lost in 2014;
 Doggett on his new TX-37 in 2022), so a nominee who won the state's
 previous general election for the same party, matched by surname and first
-name or nickname, is the incumbent. A nominee still unmatched spent too
-little to file or is missing from FEC's summary file (DeLauro in 2016), and
-counts as $0. For a cycle with no published results yet (2026), the top D
+name or nickname, is the incumbent. A party with more than one name on the
+ballot (California's top two, Louisiana's November election) is represented
+by its incumbent if it has one, then by its biggest spender. FEC's summary
+file for a year leaves out some candidates FEC hasn't linked to a committee
+(Self and Ivey in 2024). If a party's only names are those, another year's
+file gives the ID when that campaign filed reports this year, and its
+spending through June 30 stands in for the total. A nominee still unmatched
+spent too little to file, and counts as $0. For a cycle with no published results yet (2026), the top D
 and R spender per district stand in for the nominees, after dropping
 "incumbents" who are no longer House members (see below), except where
 data/nominees_{cycle}.csv names the actual nominees, checked by hand with
@@ -40,12 +52,14 @@ Foushee, NC-04; Fine, FL-06, whom FEC still lists as a challenger).
 
 import csv
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import pandas as pd
 
+from .load_early_money import load_early_money
 from .load_results import load_results
-from .lookup_quality import name_parts, same_first
+from .lookup_quality import SUFFIXES as FOLDED_SUFFIXES, fold, name_parts, same_first, split_name
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "fec"
 SHEETS = Path(__file__).resolve().parents[1] / "data" / "raw" / "presidential"
@@ -56,6 +70,7 @@ PARTY = {"DEM": "D", "DFL": "D", "REP": "R"}
 SUFFIXES = {"JR", "SR", "II", "III", "IV", "MR", "MRS", "MS", "DR", "HON", "THE", "MD"}
 WORD = re.compile(r"[A-Z]{2,}")
 SENATE_RUN_DOLLARS = 100_000
+CLOSE_SURNAME = 0.75
 
 
 def same_member(name, member):
@@ -67,12 +82,36 @@ def same_member(name, member):
         any(same_first(a, b) for a in firsts for b in member_firsts)
 
 
-def load_candidates(cycle, results):
+def close_name(fec_name, ballot):
+    """For a name one file misspells or shortens: a surname a few letters off ('DENHAM, JEFF' and 'JEFF DENHEM', 'DEAN,
+    MADELEINE' and 'MADELEINE DEAN CUNNANE', 'LAMALFA, DOUG' and 'DOUG LA MALFA') and a given name in common
+    ('HIGGINS, CAPTAIN CLAY')."""
+    surname, given = split_name(fec_name)
+    surname = fold(surname).replace(" ", "")
+    words = [w for w in fold(ballot.replace("\\", "")).split() if w not in FOLDED_SUFFIXES]
+    return any(SequenceMatcher(None, surname, piece).ratio() >= CLOSE_SURNAME for piece in words + ["".join(words[-2:])]) and \
+        any(same_first(a, b) for a in fold(given).split() for b in words)
+
+
+def other_year_records(cycle):
+    """cand_id, name, state, party and spent (through June 30) of House candidates in another year's FEC summary file
+    whose campaign filed reports in `cycle`, nearest year first."""
+    early = load_early_money(cycle)
+    files = sorted((f for f in RAW.glob("weball*.txt") if f.stem != f"weball{str(cycle)[2:]}"),
+                   key=lambda f: abs(2000 + int(f.stem[6:]) - cycle))
+    found = pd.concat([pd.read_csv(f, sep="|", header=None, dtype=str, usecols=[0, 1, 4, 18]) for f in files])
+    found.columns = ["cand_id", "name", "party_code", "state"]
+    found = found[found.cand_id.str.startswith("H") & found.cand_id.isin(early.index)].drop_duplicates("cand_id")
+    return found.assign(party=found.party_code.map(PARTY), spent=found.cand_id.map(early.spent))
+
+
+def load_candidates(cycle, results, every_name=False):
     """district_id, party, cand_id (FEC), disbursements, ici ('I'
     incumbent, 'C' challenger, 'O' open seat), FEC name and the name on the
     ballot (ballot_name; the hand-checked name, or missing, before results)
     for each matched nominee. `results` is load_results(cycle); pass an empty frame for an
-    unfinished cycle."""
+    unfinished cycle. With `every_name`, every matched name on the ballot, not
+    only the one representing its party."""
     everyone = pd.read_csv(RAW / f"weball{str(cycle)[2:]}.txt", sep="|", header=None, dtype=str,
                            usecols=list(COLUMNS)).rename(columns=COLUMNS)
     fec = everyone[everyone.cand_id.str.startswith("H")].copy()
@@ -84,6 +123,7 @@ def load_candidates(cycle, results):
                  .str.replace("'", "", regex=False))         # FEC writes both O'HALLERAN and DESPOSITO
     fec["words"] = fec_ascii.str.findall(WORD).map(set)
     fec["initial"] = fec_ascii.str.split(",").str[1].str.strip().str[:1]
+    fec["surname_words"] = fec_ascii.str.split(",").str[0].str.findall(WORD).map(set)
 
     if results.empty:
         # No ballot yet. An "incumbent" flag only counts for a current House
@@ -140,15 +180,46 @@ def load_candidates(cycle, results):
                          on="state", suffixes=("", "_fec"))
     pairs["fec_district"] = pairs.state + "-" + pairs.district.str.zfill(2)
     pairs["in_district"] = pairs.fec_district == pairs.district_id
-    same_party = (pairs.fec_party == pairs.party) | pairs.fec_party.isna()
-    named = pd.Series([s in w for s, w in zip(pairs.surname, pairs.words)], index=pairs.index)
-    found = same_party & named & (pairs.in_district | (pairs.initial == pairs.initial_fec))
-    best = pairs[found].sort_values(["in_district", "disbursements"], ascending=False)
-    nominees = best.drop_duplicates(["district_id", "party"])[columns]
+    pairs = pairs[(pairs.fec_party == pairs.party) | pairs.fec_party.isna()]
+    named = [s in w for s, w in zip(pairs.surname, pairs.words)]
+    agrees = [n and same_member(f, b) for n, f, b in zip(named, pairs.name, pairs.ballot_name)]
+    leading = [s in w and (i == j or a) for s, w, i, j, a in zip(pairs.surname, pairs.surname_words, pairs.initial, pairs.initial_fec, agrees)]
+    # 3: FEC's surname and a first initial or name agree; 2: the surname is somewhere in the FEC name; 1: a close name in the district
+    pairs = pairs.assign(fit=[3 if l else 2 if n else 1 if here and close_name(f, b) else 0
+                              for l, n, here, f, b in zip(leading, named, pairs.in_district, pairs.name, pairs.ballot_name)])
+    found = pairs[(pairs.in_district & (pairs.fit > 0)) | pd.Series(agrees, index=pairs.index)]
+    records = found.sort_values(["in_district", "fit", "disbursements"], ascending=False, kind="stable").drop_duplicates(
+        ["district_id", "party", "ballot_name"]).copy()
+
     # members FEC flags as challengers or open-seat candidates (see above)
     prior = load_results(cycle - 2).dropna(subset=["winner"])
-    won = {(d[:2], "D" if m > 0 else "R", w) for d, m, w in zip(prior.district_id, prior.margin, prior.winner)}
-    returning = [ici != "I" and any(s == d[:2] and p == party and same_member(name, w) for s, p, w in won)
-                 for d, party, name, ici in zip(nominees.district_id, nominees.party, nominees.ballot_name, nominees.ici)]
-    nominees.loc[returning, "ici"] = "I"
-    return nominees
+    won = {}
+    for d, m, w in zip(prior.district_id, prior.margin, prior.winner):
+        won.setdefault((d[:2], "D" if m > 0 else "R"), []).append(w)
+
+    def returning(state, party, *names):
+        return any(same_member(n, w) for n in names for w in won.get((state, party), []))
+
+    records.loc[[returning(s, p, b, n) for s, p, b, n in zip(records.state, records.party, records.ballot_name, records.name)], "ici"] = "I"
+    records["sitting"] = records.ici == "I"
+    nominees = records.sort_values(["sitting", "in_district", "disbursements"], ascending=False, kind="stable").drop_duplicates(
+        ["district_id", "party"])[columns]
+    key = ["district_id", "party", "ballot_name"] if every_name else ["district_id", "party"]
+    nominees = records[columns] if every_name else nominees
+
+    left = ballot[~ballot.set_index(key).index.isin(nominees.set_index(key).index)]
+    if left.empty:
+        return nominees
+    elsewhere = other_year_records(cycle)
+    filled = []
+    for r in left.itertuples():
+        pool = elsewhere[(elsewhere.state == r.state) & (elsewhere.party == r.party)]
+        pool = pool[[same_member(n, r.ballot_name) for n in pool.name]]
+        if not pool.empty:
+            filled.append({"district_id": r.district_id, "party": r.party, "cand_id": pool.cand_id.iloc[0], "disbursements": pool.spent.iloc[0],
+                           "ici": "I" if returning(r.state, r.party, r.ballot_name) else None, "name": pool.name.iloc[0],
+                           "ballot_name": r.ballot_name})
+    if not filled:
+        return nominees
+    filled = pd.DataFrame(filled).sort_values("disbursements", ascending=False, kind="stable").drop_duplicates(key)
+    return pd.concat([nominees, filled[columns]], ignore_index=True)

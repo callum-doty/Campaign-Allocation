@@ -1,0 +1,105 @@
+column,level,source,meaning
+cycle,race,,Election year
+state,race,,Postal code
+district_id,race,,"State and district; at-large seats are 00. Lines are the ones that election used, so a number can mean different places in different years"
+candidate,candidate,MIT Election Lab; FEC for 2026,"Name on the ballot, in capitals, sometimes misspelled in the source (JEFF DENHEM). 2026 has no ballot data: the hand-checked name, or FEC's legal name turned around"
+party,candidate,MIT Election Lab; FEC for 2026,D or R. Each candidate belongs to their biggest major-party line
+fec_candidate_id,candidate,FEC all-candidates file (weball),Blank when no FEC record matched. May come from another year's file; see total_disbursements
+fec_name,candidate,FEC weball,"Name as FEC writes it, sometimes misspelled"
+nominee_basis,candidate,,"ballot = from the certified results. 2026 only: hand-checked = data/nominees_2026.csv; top spender = biggest spender of that party so far, not confirmed as the nominee"
+used_in_model,candidate,build_races,"1 if this is the candidate the forecast uses for that party in a modeled race: its incumbent if it has one, then its biggest spender. Races under $100K of total spending and Alaska aren't modeled"
+incumbent_status,candidate,"FEC weball, corrected","I incumbent, C challenger, O open seat, blank if unknown. Corrected where FEC lists a sitting member otherwise (load_candidates.py). In races between two sitting members, race_status counts only the Democrat"
+votes,candidate,MIT Election Lab,"General-election votes, summed over fusion lines. Blank before results or where the state prints none for an unopposed member"
+vote_share,candidate,MIT Election Lab,"Votes as a percentage of all votes cast in the race, third parties included"
+won,candidate,"MIT Election Lab, repaired","1 won, 0 lost, blank for 2026 (no results yet)"
+total_disbursements,candidate,FEC weball,"Money spent: the campaign's disbursements over the whole cycle, dollars. For 2026, reported so far. Blank if FEC's summary file has no row for them that year, even with an FEC ID; this and the columns through fec_coverage_end all come from that file"
+total_receipts,candidate,FEC weball,"Money raised over the whole cycle, dollars"
+individual_contributions,candidate,FEC weball,"From individuals, dollars"
+pac_contributions,candidate,FEC weball,"From other political committees, dollars"
+party_contributions,candidate,FEC weball,"From party committees, dollars"
+candidate_contributions,candidate,FEC weball,"From the candidate, dollars"
+candidate_loans,candidate,FEC weball,"Loans from the candidate, dollars"
+debts_owed,candidate,FEC weball,"Debts owed by the campaign at the end of coverage, dollars"
+cash_on_hand_end,candidate,FEC weball,"Cash at the end of coverage, dollars"
+fec_coverage_end,candidate,FEC weball,Date the totals above run through
+raised_by_jun30,candidate,FEC report summaries,"Receipts through June 30 of the election year, as filed by Aug 31, dollars"
+spent_by_jun30,candidate,FEC report summaries,"Disbursements through June 30, as filed by Aug 31, dollars"
+own_money_by_jun30,candidate,FEC report summaries,"The candidate's own contributions and loans within raised_by_jun30, dollars"
+ie_for,candidate,FEC independent expenditures,"Independent spending on this candidate's side (supporting them or opposing the other party), party committee included, dollars. On one row per party in a race (the model's nominee, or else the top vote-getter), so summing the column counts each dollar once"
+ie_against,candidate,FEC independent expenditures,"Independent spending on the other party's side, dollars, on the same rows as ie_for"
+wiki_article_title,candidate,Wikipedia revision history,Article the challenger-quality lookup matched. Non-incumbents the model uses only
+wiki_article_as_of,candidate,Wikipedia revision history,Timestamp of the revision that stood on Jan 1 of the election year
+had_wiki_article_jan1,candidate,Wikipedia revision history,"1 if the nominee had an article on Jan 1, 0 if not, blank for incumbents, who aren't looked up. The model's challenger-quality feature"
+wiki_views_jan_aug,candidate,Wikimedia page views (data/wikipedia_views.csv),"Page views Jan 1-Aug 31. Competitive races in 2018, 2022 and 2024 only; blank if no article was found. From an earlier, looser name match than the quality lookup, so some articles may be namesakes"
+gdelt_articles,candidate,GDELT via BigQuery (data/news_bq*.csv),"Articles Jan 1-Aug 31 naming the nominee and their state with a political theme. Competitive races in 2018, 2022 and 2024 only. GDELT misses names that are ordinary words (Golden, Wild, Lamb) and common names pick up other people"
+gdelt_mean_tone,candidate,GDELT via BigQuery,Average article tone; negative is unfavorable
+gdelt_negative_articles,candidate,GDELT via BigQuery,Articles with tone of -5 or lower
+race_d_votes,race,MIT Election Lab,Votes for every Democrat in the race
+race_r_votes,race,MIT Election Lab,Votes for every Republican in the race
+race_total_votes,race,MIT Election Lab,All votes cast in the race
+race_margin,race,MIT Election Lab,"Democratic minus Republican, points of the two-party vote. +/-100 means one party had no candidate, including D-vs-D races"
+race_winner,race,"MIT Election Lab, repaired",Name of the race's winner
+race_dccc_spent,race,FEC independent expenditures,"DCCC's independent spending, dollars. 2026 misses its coordinated spending, which is how it spends after NRSC v. FEC"
+race_nrcc_spent,race,FEC independent expenditures,"NRCC's independent spending, dollars. Same 2026 gap"
+race_outside_d,race,FEC independent expenditures,"Non-party-committee spending on the Democratic side, dollars"
+race_outside_r,race,FEC independent expenditures,"Non-party-committee spending on the Republican side, dollars"
+race_outside_d_by_aug31,race,FEC independent expenditures,"race_outside_d that had reached voters by Aug 31, dollars"
+race_outside_r_by_aug31,race,FEC independent expenditures,"race_outside_r that had reached voters by Aug 31, dollars"
+race_ie_d_tv,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: TV, from the filer's purpose description, dollars"
+race_ie_d_digital,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Digital, from the filer's purpose description, dollars"
+race_ie_d_mail,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Mail, from the filer's purpose description, dollars"
+race_ie_d_radio,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Radio, from the filer's purpose description, dollars"
+race_ie_d_field_phones,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Field/phones, from the filer's purpose description, dollars"
+race_ie_d_media_unspecified,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Media, unspecified, from the filer's purpose description, dollars"
+race_ie_d_production,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Production, from the filer's purpose description, dollars"
+race_ie_d_other,race,FEC independent expenditures,"Democratic-side independent spending, party committee included: Other, from the filer's purpose description, dollars"
+race_ie_r_tv,race,FEC independent expenditures,"Republican-side independent spending, party committee included: TV, from the filer's purpose description, dollars"
+race_ie_r_digital,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Digital, from the filer's purpose description, dollars"
+race_ie_r_mail,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Mail, from the filer's purpose description, dollars"
+race_ie_r_radio,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Radio, from the filer's purpose description, dollars"
+race_ie_r_field_phones,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Field/phones, from the filer's purpose description, dollars"
+race_ie_r_media_unspecified,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Media, unspecified, from the filer's purpose description, dollars"
+race_ie_r_production,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Production, from the filer's purpose description, dollars"
+race_ie_r_other,race,FEC independent expenditures,"Republican-side independent spending, party committee included: Other, from the filer's purpose description, dollars"
+pvi,race,The Downballot presidential results by district,"Partisan lean: district's Democratic two-party share minus the nation's, in the last presidential election before the race, points"
+pres_d_share_2008,race,The Downballot presidential results by district,"Democratic share of the 2008 two-party presidential vote on this race's lines, blank where not published"
+pres_d_share_2012,race,The Downballot presidential results by district,"Democratic share of the 2012 two-party presidential vote on this race's lines, blank where not published"
+pres_d_share_2016,race,The Downballot presidential results by district,"Democratic share of the 2016 two-party presidential vote on this race's lines, blank where not published"
+pres_d_share_2020,race,The Downballot presidential results by district,"Democratic share of the 2020 two-party presidential vote on this race's lines, blank where not published"
+pres_d_share_2024,race,The Downballot presidential results by district,"Democratic share of the 2024 two-party presidential vote on this race's lines, blank where not published"
+race_status,race,build_races,"D incumbent, R incumbent or Open. Blank for races the model doesn't cover, as are all the model columns below"
+race_tier,race,build_races,"Rating from lean and incumbency, for reporting only"
+d_incumbent,race,build_races,Model feature: 1 if the Democrat is the incumbent
+open_seat,race,build_races,Model feature: 1 if neither nominee is the incumbent
+floor_share,race,build_races,"Model feature: log of the Democratic share of money neither national committee controls, visible by Sept 1"
+fresh_d,race,build_races,Model feature: the Democrat is a first-term incumbent
+fresh_r,race,build_races,Model feature: the Republican is a first-term incumbent
+over_inc,race,build_races,"Model feature: how far the seat's party ran ahead of its lean last time, when its incumbent is running again"
+over_open,race,build_races,"Model feature: the same, when the seat is open"
+redrawn,race,build_races,1 if the state's lines changed since the last election
+inc_redrawn,race,build_races,"redrawn, signed by the incumbent's party (+1 D, -1 R)"
+quality,race,build_races,"Model feature: Democrat's had_wiki_article_jan1 minus the Republican's, incumbents counting as 0"
+forecast_margin,race,"backtest, forecast","Forecast Democratic margin, points, from the final generic ballot. 2016-2024 fit only on earlier elections; 2026 on all of them; 2012 and 2014 have no forecast"
+forecast_p_dem,race,"backtest, forecast","Forecast chance the Democrat wins, from the final generic ballot"
+forecast_p_dem_sep01,race,dated_forecast,"The same as the forecast stood on 09-01, from polls and outside money seen by then. 2016-2024 only"
+forecast_p_dem_sep15,race,dated_forecast,"The same as the forecast stood on 09-15, from polls and outside money seen by then. 2016-2024 only"
+forecast_p_dem_oct01,race,dated_forecast,"The same as the forecast stood on 10-01, from polls and outside money seen by then. 2016-2024 only"
+forecast_p_dem_oct15,race,dated_forecast,"The same as the forecast stood on 10-15, from polls and outside money seen by then. 2016-2024 only"
+forecast_p_dem_oct25,race,dated_forecast,"The same as the forecast stood on 10-25, from polls and outside money seen by then. 2016-2024 only"
+model_dccc_dollars,race,backtest,"The model's best split of DCCC's actual budget that year at the default spending assumption, dollars. 2016-2024 only"
+tv_market,race,"Cervas, Nielsen markets by district","District's main TV market. 2022, 2024 and 2026 lines; not Alaska or Hawaii"
+tv_market_population,race,Cervas,People in that market
+district_population,race,Cervas,People in the district
+tv_main_market_share,race,Cervas,Share of the district in its main market
+tv_market_count,race,Cervas,Markets the district touches
+tv_reach,race,Cervas,People in the district's markets per person in the district
+early_vote_share,state,EAVS,State's share of ballots cast before Election Day. Years without a complete survey use the nearest one
+generic_ballot_final,national,data/generic_ballot.csv,"Final generic-ballot average heading into the election, Democratic lead in points"
+generic_ballot_sep01,national,data/generic_ballot_dated.csv,"Generic-ballot average on 09-01, through 2024"
+generic_ballot_sep15,national,data/generic_ballot_dated.csv,"Generic-ballot average on 09-15, through 2024"
+generic_ballot_oct01,national,data/generic_ballot_dated.csv,"Generic-ballot average on 10-01, through 2024"
+generic_ballot_oct15,national,data/generic_ballot_dated.csv,"Generic-ballot average on 10-15, through 2024"
+generic_ballot_oct25,national,data/generic_ballot_dated.csv,"Generic-ballot average on 10-25, through 2024"
+national_house_margin,national,MIT Election Lab,"National House popular vote, Democratic minus Republican, points. Blank for 2026"
+household_basket_change,national,"FRED, HOUSING AFFORDABILITY TRACKER weights","Household cost basket, percent change June over June of the election year"
+household_stress_change,national,FRED,"Credit-and-labor stress index, change in points, June over June"

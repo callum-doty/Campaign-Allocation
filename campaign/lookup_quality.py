@@ -204,17 +204,23 @@ def lookup_quality(cycle, nominees, states, dest, headers):
         state = states[n.district_id[:2]]
         ballot = getattr(n, "ballot_name", None)
         known_as = ballot if isinstance(ballot, str) else n.name
-        first = next((f for f in name_parts(known_as)[0] if len(f) > 1), "")      # not an initial
-        surname = re.sub(r'["().]', "", split_name(known_as)[0]).strip()
+        spellings = [known_as]
+        if fold(split_name(n.name)[0]) != fold(split_name(known_as)[0]):          # either file can misspell a surname
+            spellings.append(n.name)
         title, as_of = None, None
-        for query in (f'{first} "{surname}" {state}', f'"{surname.split()[-1]}" {state} congressional'):
-            hits = wiki(session, {"action": "query", "list": "search", "srsearch": query, "srlimit": 10})
-            for hit in hits.get("query", {}).get("search", []):
-                if not same_person(hit["title"], known_as, state, names):
-                    continue
-                lead, when = lead_on(session, hit["title"], cycle)
-                if lead and state.lower() in lead.lower() and POLITICAL.search(lead) and party_ok(lead, n.party):
-                    title, as_of = hit["title"], when
+        for known_as in spellings:
+            first = next((f for f in name_parts(known_as)[0] if len(f) > 1), "")      # not an initial
+            surname = re.sub(r'["().]', "", split_name(known_as)[0]).strip()
+            for query in (f'{first} "{surname}" {state}', f'"{surname.split()[-1]}" {state} congressional'):
+                hits = wiki(session, {"action": "query", "list": "search", "srsearch": query, "srlimit": 10})
+                for hit in hits.get("query", {}).get("search", []):
+                    if not same_person(hit["title"], known_as, state, names):
+                        continue
+                    lead, when = lead_on(session, hit["title"], cycle)
+                    if lead and state.lower() in lead.lower() and POLITICAL.search(lead) and party_ok(lead, n.party):
+                        title, as_of = hit["title"], when
+                        break
+                if title:
                     break
             if title:
                 break
