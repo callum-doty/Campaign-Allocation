@@ -18,6 +18,7 @@ from campaign import household_index as hi  # noqa: E402
 from campaign import load_early_money as lem  # noqa: E402
 from campaign import load_fred as lf  # noqa: E402
 from campaign import load_presidential as lp  # noqa: E402
+from campaign import load_results as lres  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
@@ -388,6 +389,36 @@ def test_hand_checked_nominees_replace_the_top_spender_guess(tmp_path, monkeypat
     picked = lc.load_candidates(2026, pd.DataFrame()).set_index("party")
     assert picked.cand_id.to_dict() == {"D": "H6AA01002", "R": "H6AA01003"}
     assert picked.ici["R"] == "I"
+
+
+def test_last_winners_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypatch):
+    def weball_row(cand_id, name, ici, party, disbursed, state, district):
+        row = [""] * 30
+        row[0], row[1], row[2], row[4], row[7], row[18], row[19] = cand_id, name, ici, party, disbursed, state, district
+        return "|".join(row)
+    (tmp_path / "weball14.txt").write_text("\n".join([
+        weball_row("H2AA01001", "SCHNEIDER, BRADLEY SCOTT", "C", "DEM", "900000", "AA", "01"),   # won in 2012
+        weball_row("H0AA01002", "DOLD, ROBERT J", "C", "REP", "800000", "AA", "01"),             # lost in 2012
+        weball_row("H2AA02001", "KHANNA, ROHIT", "C", "DEM", "700000", "AA", "02"),              # lost a D-vs-D race
+        weball_row("H0AA02002", "HONDA, MICHAEL", "I", "DEM", "600000", "AA", "02"),
+        weball_row("H4AA03001", "HOOPER, JAMES", "C", "REP", "500000", "AA", "03"),              # not John James
+        weball_row("H2AA03002", "JONES, PAT", "C", "DEM", "400000", "AA", "03")]) + "\n")
+    mit = [(2012, "01", "BRAD SCHNEIDER", "DEMOCRAT", 120), (2012, "01", "ROBERT DOLD", "REPUBLICAN", 100),
+           (2012, "02", "MIKE HONDA", "DEMOCRAT", 150), (2012, "02", "RO KHANNA", "DEMOCRAT", 100),
+           (2012, "03", "JOHN JAMES", "REPUBLICAN", 200), (2012, "03", "PAT JONES", "DEMOCRAT", 100),
+           (2014, "01", "BRADLEY S SCHNEIDER", "DEMOCRAT", 90), (2014, "01", "ROBERT J DOLD", "REPUBLICAN", 100),
+           (2014, "02", "RO KHANNA", "DEMOCRAT", 100), (2014, "02", "MIKE HONDA", "DEMOCRAT", 120),
+           (2014, "03", "JAMES HOOPER", "REPUBLICAN", 200), (2014, "03", "PAT JONES", "DEMOCRAT", 100)]
+    pd.DataFrame([{"year": y, "stage": "GEN", "mode": "TOTAL", "runoff": False, "special": False, "writein": False,
+                   "state_po": "AA", "district": d, "candidate": c, "party": p, "candidatevotes": v}
+                  for y, d, c, p, v in mit]).to_csv(tmp_path / "house.csv", index=False)
+    monkeypatch.setattr(lc, "RAW", tmp_path)
+    monkeypatch.setattr(lres, "RAW", tmp_path / "house.csv")
+    assert lres.load_results(2012).set_index("district_id").winner.to_dict() == {
+        "AA-01": "BRAD SCHNEIDER", "AA-02": "MIKE HONDA", "AA-03": "JOHN JAMES"}
+    picked = lc.load_candidates(2014, lres.load_results(2014)).set_index(["district_id", "party"])
+    assert picked.ici.to_dict() == {("AA-01", "D"): "I", ("AA-01", "R"): "C", ("AA-02", "D"): "C",
+                                    ("AA-03", "R"): "C", ("AA-03", "D"): "C"}
 
 
 def test_sitting_members_fec_lists_as_challengers_are_incumbents(tmp_path, monkeypatch):

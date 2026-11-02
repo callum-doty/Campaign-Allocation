@@ -4,7 +4,8 @@ One row per House race, with every feature the model uses.
 Features:
 - pvi: partisan lean on the race's own lines (load_pvi).
 - d_incumbent / open_seat: from FEC's incumbent flag on the matched
-  nominees; a Republican incumbent is the baseline.
+  nominees, corrected where FEC lists a sitting member as a challenger
+  (load_candidates.py); a Republican incumbent is the baseline.
 - fresh_d / fresh_r, over_inc / over_open: first-term incumbents, and how
   far the seat's party ran ahead of its lean two years earlier
   (incumbent_history.py). redrawn / inc_redrawn: the lines changed since

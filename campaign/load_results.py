@@ -12,6 +12,9 @@ House general-election results by district, from MIT Election Lab.
 - Every candidate with a D (or R) line counts toward that party, which
   handles Louisiana's multi-candidate November election and California's
   top-two (a D-vs-D race shows up as uncontested).
+- winner: the top vote-getter on the side with more votes, so the leader
+  of a D-vs-D race too. Runoffs are dropped, so in a Louisiana race decided
+  in a December runoff it is November's leader, who may not have won.
 - Names: about 60 rows, nearly all 2022, are UTF-8 decoded twice ("TOM
   OâHALLERAN" for O'Halleran's curly apostrophe). They are repaired, and
   curly quotes straightened, so names match FEC's spelling. Otherwise
@@ -42,7 +45,8 @@ def clean_name(name):
 
 def load_results(cycle):
     """district_id, d_votes, r_votes, margin (D minus R, points of the
-    two-party vote), d_names, r_names (every candidate on that party's line).
+    two-party vote), d_names, r_names (every candidate on that party's line),
+    winner.
     Empty for cycles MIT hasn't published yet."""
     raw = pd.read_csv(RAW, dtype={"district": str}, low_memory=False)
     keep = (raw.year == cycle) & (raw.stage == "GEN") & (raw["mode"] == "TOTAL")
@@ -65,6 +69,8 @@ def load_results(cycle):
     names = totals.groupby(["district_id", "side"]).candidate.apply(list).unstack()
     out["d_names"] = names.get("D")
     out["r_names"] = names.get("R")
+    top = totals.sort_values("votes").drop_duplicates(["district_id", "side"], keep="last").set_index(["district_id", "side"])
+    out["winner"] = [top.candidate.get((d, "D" if dv > rv else "R")) for d, dv, rv in zip(out.index, out.d_votes, out.r_votes)]
     two_party = out.d_votes + out.r_votes
     out["margin"] = 100 * (out.d_votes - out.r_votes) / two_party.where(two_party > 0)
     return out.reset_index()

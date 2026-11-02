@@ -16,7 +16,12 @@ code is sometimes unknown ("UNK"); a name match in the district is enough
 then. After redistricting FEC often keeps a member's old district number
 (Schweikert ran in AZ-01 in 2022 but is filed under AZ-06), so a nominee
 with no match in the district is matched elsewhere in the state when the
-surname and first initial both agree. A nominee still unmatched spent too
+surname and first initial both agree. FEC also flags some members running
+again as challengers or open-seat candidates, apparently by their later
+status (Schneider, Garcia, Gallego and Shea-Porter, who all lost in 2014;
+Doggett on his new TX-37 in 2022), so a nominee who won the state's
+previous general election for the same party, matched by surname and first
+name or nickname, is the incumbent. A nominee still unmatched spent too
 little to file or is missing from FEC's summary file (DeLauro in 2016), and
 counts as $0. For a cycle with no published results yet (2026), the top D
 and R spender per district stand in for the nominees, after dropping
@@ -39,6 +44,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .load_results import load_results
 from .lookup_quality import name_parts, same_first
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "fec"
@@ -52,10 +58,10 @@ WORD = re.compile(r"[A-Z]{2,}")
 SENATE_RUN_DOLLARS = 100_000
 
 
-def same_member(fec_name, member):
-    """Whether FEC's name is the member's: 'ONDER JR, ROBERT FRANK' is Bob Onder, but 'HOOPER, JAMES D' is
-    not John James."""
-    firsts, _, surname = name_parts(fec_name)
+def same_member(name, member):
+    """Whether a nominee's name (FEC's or the ballot's) is the member's: 'ONDER JR, ROBERT FRANK' is Bob Onder,
+    but 'HOOPER, JAMES D' is not John James."""
+    firsts, _, surname = name_parts(name)
     member_firsts, _, member_surname = name_parts(member)
     return bool(member_surname) and member_surname[-1] in surname and \
         any(same_first(a, b) for a in firsts for b in member_firsts)
@@ -138,4 +144,11 @@ def load_candidates(cycle, results):
     named = pd.Series([s in w for s, w in zip(pairs.surname, pairs.words)], index=pairs.index)
     found = same_party & named & (pairs.in_district | (pairs.initial == pairs.initial_fec))
     best = pairs[found].sort_values(["in_district", "disbursements"], ascending=False)
-    return best.drop_duplicates(["district_id", "party"])[columns]
+    nominees = best.drop_duplicates(["district_id", "party"])[columns]
+    # members FEC flags as challengers or open-seat candidates (see above)
+    prior = load_results(cycle - 2).dropna(subset=["winner"])
+    won = {(d[:2], "D" if m > 0 else "R", w) for d, m, w in zip(prior.district_id, prior.margin, prior.winner)}
+    returning = [ici != "I" and any(s == d[:2] and p == party and same_member(name, w) for s, p, w in won)
+                 for d, party, name, ici in zip(nominees.district_id, nominees.party, nominees.ballot_name, nominees.ici)]
+    nominees.loc[returning, "ici"] = "I"
+    return nominees
