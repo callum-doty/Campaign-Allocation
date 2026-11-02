@@ -84,6 +84,7 @@ campaign/
   national_test.py          does household stress explain the national polling miss?
   report.py                 write REPORT.md
   export_dataset.py         every candidate and race in one CSV (not part of run.py)
+  freeze_forecast.py        the 2026 forecast under each money spec, written before results (not part of run.py)
   plots/                    one chart per file
 data/generic_ballot.csv     final polling averages, 2002-2026, with sources
 data/generic_ballot_dated.csv  polling averages on five dates each fall, 2002-2024, with sources
@@ -91,6 +92,7 @@ data/nominees_2026.csv      2026 nominees checked by hand where the top-spender 
 data/all_candidates.csv     everything above in one table, a row per D or R candidate per race (python -m campaign.export_dataset)
 data/all_candidates_columns.csv  what each of its columns is
 data/wikipedia_views.csv    nominees' page views, Jan 1-Aug 31, competitive races in 2018, 2022 and 2024
+data/forecast_freeze_2026.csv, .json  those forecasts: each race, then each fit and seat total
 tests/test_model.py
 ```
 
