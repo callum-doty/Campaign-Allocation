@@ -2,6 +2,7 @@
 
 import itertools
 import sys
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -22,7 +23,10 @@ from campaign import load_presidential as lp  # noqa: E402
 from campaign import load_results as lres  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
+from campaign.brand_test import add_money_bands, national_passthrough, scaled  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
+from campaign.classify_purpose import by_rules, classify_text, classify_vendors, vendor_categories, vendor_key  # noqa: E402
+from campaign.competitive_response import response  # noqa: E402
 from campaign.export_dataset import display_name  # noqa: E402
 from campaign.fit_baseline import fit_baseline  # noqa: E402
 from campaign.fit_close import close_inc, fit_close  # noqa: E402
@@ -32,8 +36,16 @@ from campaign.fetch import schedule_f_rows  # noqa: E402
 from campaign.freeze_forecast import freeze, money_signal, money_terms, score  # noqa: E402
 from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign import lookup_quality as lq  # noqa: E402
+from campaign.load_oppexp import swap_memos  # noqa: E402
+from campaign.market_spillover import spillover_fit  # noqa: E402
+from campaign.mine_spending import clr, rules, shares  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
+from campaign.load_donors import committee_donors, donor_key, gifts_through_june, parse_line, race_measures  # noqa: E402
+from campaign.google_ads import add_google  # noqa: E402
+from campaign import redrawn_retention as rr  # noqa: E402
+from campaign.redrawn_retention import carried_over, changed_states, overlap, retention_bands, retention_slope, state_blocks, state_blocks_2010  # noqa: E402
+from campaign.spending_features import committee_measures  # noqa: E402
 from campaign.reallocation_gain import reallocation_gain  # noqa: E402
 from campaign.seat_distribution import seat_distribution  # noqa: E402
 from campaign.solve_game import solve_game  # noqa: E402
@@ -675,3 +687,190 @@ def test_money_signal_compares_races_by_who_spent_after_taking_out_the_miss():
     assert signal.resid["neither"] == pytest.approx(3.0)
     assert signal.resid["both"] == pytest.approx(-3.0)
     assert signal.n.sum() == 4
+
+
+@pytest.mark.parametrize("purpose, category", [
+    ("DIRECT MAIL FUNDRAISING", "Fundraising"), ("EMAIL", "Digital"), ("PAYROLL PROCESSING FEES", "Payroll/admin"),
+    ("CREDIT CARD PROCESSING FEE", "Processing fees"), ("CREDIT CARD PAYMENT - SEE BELOW", "Pass-through"), ("POSTAGE", "Mail/print"),
+    ("MEDIA BUY", "Broadcast"), ("TV AND RADIO ADVERTISING PRODUCTION", "Production"), ("CELL PHONE SERVICE", "Payroll/admin"),
+    ("PHONE BANK", "Field/phones"), ("AIRLINE TICKETS", "Payroll/admin"), ("EVENT TICKETS", "Events"), ("STRATEGY CONSULTING", "Consulting/unspecified"),
+    ("POLLING", "Polling/research"), ("DUES", "Contributions"), ("", "Other")])
+def test_purposes_fall_in_the_right_category(purpose, category):
+    assert by_rules(purpose) == category
+
+
+def test_fec_codes_settle_only_purposes_with_no_rule():
+    found = classify_text(pd.Series(["STRATEGY CONSULTING", "MISC", "MISC"]), pd.Series(["001", "005", None]))
+    assert found.tolist() == ["Consulting/unspecified", "Polling/research", "Other"]     # filers code consultants as overhead
+
+
+def test_only_a_vendor_with_a_clear_record_settles_vague_payments():
+    vendors = pd.Series(["TV CO", "TV CO", "MIXED", "MIXED", "SMALL"])
+    known = vendor_categories(vendors, pd.Series(["Broadcast", "Broadcast", "Broadcast", "Digital", "Broadcast"]),
+                              pd.Series([20_000.0, 20_000.0, 30_000.0, 30_000.0, 1_000.0]))
+    assert known.to_dict() == {"TV CO": "Broadcast"}
+    out = classify_vendors(pd.Series(["TV CO", "TV CO", "MIXED"]), pd.Series(["Consulting/unspecified", "Digital", "Consulting/unspecified"]), known)
+    assert out.tolist() == ["Broadcast", "Digital", "Consulting/unspecified"]
+    assert vendor_key(pd.Series(["The Frost Group, LLC"])).iloc[0] == "FROST GROUP"
+
+
+def test_a_payments_memo_rows_replace_it_without_changing_the_total():
+    rows = pd.DataFrame({"CMTE_ID": "C1", "FILE_NUM": "1", "TRAN_ID": ["P1", "M1", "M2", "P2", "P3", "M3", "ORPHAN"],
+                         "BACK_REF_TRAN_ID": [None, "P1", "P1", None, None, "P3", "NOPE"], "MEMO_CD": [None, "X", "X", None, None, "X", "X"],
+                         "amount": [100.0, 30.0, 50.0, 40.0, 10.0, 20.0, 99.0]})
+    out = swap_memos(rows).set_index("TRAN_ID").amount
+    assert out.sum() == pytest.approx(150.0)
+    assert out.to_dict() == pytest.approx({"P1": 20.0, "M1": 30.0, "M2": 50.0, "P2": 40.0, "M3": 10.0})   # P3's memo exceeded it, so it scales down
+
+
+def test_centered_log_ratios_ignore_budget_and_sum_to_zero():
+    rows = pd.DataFrame({"committee_id": ["a", "a", "b", "b"], "category": ["Broadcast", "Digital"] * 2, "amount": [1.0, 1.0, 1000.0, 1000.0]})
+    table = shares(rows)
+    assert table.total.to_dict() == {"a": 2.0, "b": 2000.0}
+    ratios = clr(table)
+    assert ratios.sum(axis=1).to_numpy() == pytest.approx([0.0, 0.0])
+    assert ratios.loc["a"].to_numpy() == pytest.approx(ratios.loc["b"].to_numpy())
+
+
+def test_conditional_lift_removes_what_budget_explains_and_rules_run_forward():
+    rng = np.random.default_rng(0)
+    big = rng.random(4000) < 0.5                         # big campaigns buy both, independently of each other
+    table = pd.DataFrame({"Q2 Polling": rng.random(4000) < np.where(big, 0.8, 0.1), "Q3 Broadcast": rng.random(4000) < np.where(big, 0.8, 0.1)})
+    found = rules(table, pd.Series(big), min_support=0.01, min_confidence=0.1).set_index("if")
+    assert found.lift["Q2 Polling"] > 1.5
+    assert found.conditional_lift["Q2 Polling"] == pytest.approx(1.0, abs=0.05)
+    assert "Q3 Broadcast" not in found.index             # a later phase can't lead to an earlier one
+
+
+def test_campaign_measures_read_combinations_order_and_vendors():
+    rows = pd.DataFrame({"committee_id": ["a", "a", "a", "b", "b"], "vendor": ["V1", "V2", "V3", "V1", "V1"], "amount": [50.0, 25.0, 25.0, 90.0, 10.0],
+                         "category": ["Digital", "Mail/print", "Polling/research", "Broadcast", "Polling/research"],
+                         "date": pd.to_datetime(["2024-03-01", "2024-05-01", "2024-01-01", "2024-01-01", "2024-02-01"])})
+    out, used = committee_measures(2024, rows, {("a", "V1")})
+    assert out.digital_mail.to_dict() == {"a": 1.0, "b": 0.0}
+    assert out.polling_digital["a"] == 1.0
+    assert out.poll_first.to_dict() == {"a": 1.0, "b": 0.0}                    # a polled in January, b started on TV first
+    assert out.vendor_hhi["b"] == pytest.approx(1.0)
+    assert out.vendor_hhi["a"] == pytest.approx(0.375)
+    assert out.vendor_retention.to_dict() == pytest.approx({"a": 0.5, "b": 0.0})
+    assert out.contact_lead["b"] == pytest.approx(181 / 365)
+    assert ("b", "V1") in used
+
+
+def test_a_real_response_shows_in_last_weeks_money_and_not_next_weeks():
+    rng = np.random.default_rng(0)
+    index = pd.MultiIndex.from_product([[f"R{i}" for i in range(150)], range(12)], names=["district_id", "week"])
+    nrcc = pd.Series(np.sinh(rng.normal(8, 2, len(index))), index=index)
+    dccc = pd.Series(np.sinh(0.5 * np.arcsinh(nrcc.groupby(level=0).shift(1).fillna(0)) + rng.normal(4, 1, len(index))), index=index)
+    found = response({2024: pd.DataFrame({"dccc": dccc, "nrcc": nrcc})}, "dccc", "nrcc")
+    assert found["lag"][0] == pytest.approx(0.5, abs=0.05)
+    assert abs(found["lead"][0]) < 0.05
+
+
+def test_shared_markets_and_retention_recover_what_was_built_in():
+    rng = np.random.default_rng(0)
+    close = pd.DataFrame({"mu": rng.normal(0, 5, 400), "reach": rng.uniform(1, 30, 400), "n_other": rng.integers(0, 5, 400), "cycle": 2024, "market": np.arange(400)})
+    close["committee"] = np.expm1(10 + 0.4 * close.n_other + rng.normal(0, 0.2, 400))
+    assert spillover_fit(close)["n_other"] == pytest.approx(0.4, abs=0.05)
+    blocks = pd.DataFrame({"old": ["A", "A", "B", "B"], "new": ["X", "X", "X", "Y"], "people": [10.0, 10.0, 10.0, 5.0]})
+    shares_kept = overlap(blocks).set_index(["old", "new"]).retained
+    assert shares_kept.to_dict() == pytest.approx({("A", "X"): 2 / 3, ("B", "X"): 1 / 3, ("B", "Y"): 1.0})
+    table = pd.DataFrame({"cycle": 2022, "district_id": ["AL-01", "AL-02", "GA-01", "GA-02"], "retained": [0.2, 0.5, 0.8, 1.0], "resid": [-1.6, -1.0, -0.4, 0.0]})
+    assert retention_slope(table)["slope"] == pytest.approx(2.0)
+    apart = pd.concat([table, table.assign(cycle=2024, resid=table.resid + 10.0, retained=table.retained - 0.1)], ignore_index=True)
+    assert retention_slope(apart)["slope"] == pytest.approx(2.0)
+    assert retention_slope(table, within_state=True)["slope"] == pytest.approx(2.0)
+    assert retention_slope(table.assign(resid=table.resid + [5.0, 5.0, -5.0, -5.0]), within_state=True)["slope"] == pytest.approx(2.0)
+    assert retention_bands(table)["size"].tolist() == [1, 1, 1, 1]
+    before, after = carried_over(table, table)
+    assert after < before
+
+
+def test_pass_through_scales_only_the_elections_it_names_and_is_recovered_nationally():
+    races = {2022: pd.DataFrame({"gb": [4.0]}), 2024: pd.DataFrame({"gb": [4.0]})}
+    out = scaled(races, midterm=1.0, presidential=0.5)
+    assert out[2022].gb.iloc[0] == 4.0 and out[2024].gb.iloc[0] == 2.0
+    polls = np.array([-9.0, -3.0, -1.0, 0.0, 2.0, 4.0, 6.0, 8.0])
+    table = pd.DataFrame({"gb": polls, "gb_sept": polls + 1.0, "house_vote": 0.8 * polls - 1.0}, index=range(2010, 2026, 2))
+    found = national_passthrough(table).set_index(["poll", "group"])
+    assert found.k["gb", "All"] == pytest.approx(0.8)
+    assert found.k["gb", "Presidential"] == pytest.approx(0.8)
+    assert found.n["gb", "Midterm"] == 4
+
+
+def test_money_bands_mark_low_money_and_separate_hindsight_from_what_september_sees():
+    x = pd.DataFrame({"pvi": [10.0, -10.0], "raised_jun_d": [100_000.0, 2_000_000.0], "raised_jun_r": [100_000.0, 0.0], "outside_aug_d": [0.0, 0.0], "outside_aug_r": [0.0, 500_000.0],
+                      "disbursements_d": [3_000_000.0, 100.0], "disbursements_r": [0.0, 100.0], "outside_d": [0.0, 0.0], "outside_r": [0.0, 0.0]})
+    out = add_money_bands({2024: x})[2024]
+    assert out.low_money.tolist() == [1.0, 0.0] and out.low_all.tolist() == [0.0, 1.0]
+    assert out.pvi_low.tolist() == [10.0, 0.0] and out.pvi_low_all.tolist() == [0.0, -10.0]
+    assert out.pvi_curve.tolist() == pytest.approx([10.0, -10.0])
+
+
+def test_google_matches_committees_by_fec_id_and_leaves_earlier_years_at_even():
+    export = pd.DataFrame({"public_ids": ["FEC ID C00000001", "EIN ID 12-3456789", None], "year": 2022, "spend_before_sep1": [90_000.0, 50_000.0, 50_000.0], "spend_all_year": [99_000.0, 50_000.0, 50_000.0]})
+    races = {2018: pd.DataFrame({"cm_d": ["C00000001"], "cm_r": [None]}), 2022: pd.DataFrame({"cm_d": ["C00000001"], "cm_r": [None]})}
+    out = add_google(races, export)
+    assert out[2022].google_d.iloc[0] == 90_000.0 and out[2022].google_r.iloc[0] == 0.0
+    assert out[2022].google_odds.iloc[0] == pytest.approx(np.log(10.0))
+    assert out[2018].google_odds.iloc[0] == 0.0
+
+
+def test_state_blocks_reads_people_and_lines_from_the_redistricting_file(tmp_path):
+    geo = ["PLST", "AL", "750", "00", "00", "000", "00", "0000002", "x", "010010201001000"] + [""] * 52 + ["02"] + [""] * 34
+    state_level = list(geo)
+    state_level[2], state_level[7] = "040", "0000001"
+    empty_block = list(geo)
+    empty_block[7], empty_block[9] = "0000003", "010010201001001"
+    counts = "PLST|AL|000|01|0000001|999\nPLST|AL|000|01|0000002|7\nPLST|AL|000|01|0000003|0\n"
+    with zipfile.ZipFile(tmp_path / "al2020.pl.zip", "w") as z:
+        z.writestr("algeo2020.pl", "\n".join("|".join(r) for r in (state_level, geo, empty_block)) + "\n")
+        z.writestr("al000012020.pl", counts)
+    blocks = state_blocks(tmp_path / "al2020.pl.zip")
+    assert blocks.to_dict("records") == [{"block": "010010201001000", "people": 7.0, "base": "AL-02"}]
+
+
+def test_2010_blocks_and_national_lines_and_which_states_changed(tmp_path, monkeypatch):
+    def geo(level, record, block, cd):
+        line = [" "] * 200
+        for start, text in ((8, level), (18, record), (27, "01"), (29, "001"), (54, "021100"), (61, block), (153, cd)):
+            line[start:start + len(text)] = text
+        return "".join(line)
+    with zipfile.ZipFile(tmp_path / "al2010.pl.zip", "w") as z:
+        z.writestr("algeo2010.pl", "\n".join([geo("040", "0000001", "    ", "  "), geo("750", "0000002", "2000", "02"), geo("750", "0000003", "2001", "02")]) + "\n")
+        z.writestr("al000012010.pl", "PLST,AL,000,01,0000001,99\nPLST,AL,000,01,0000002,7\nPLST,AL,000,01,0000003,0\n")
+    assert state_blocks_2010(tmp_path / "al2010.pl.zip").to_dict("records") == [{"block": "010010211002000", "people": 7.0, "base": "AL-02"}]
+    (tmp_path / "bef").mkdir()
+    with zipfile.ZipFile(tmp_path / "bef" / "cd120.zip", "w") as z:
+        z.writestr("CD120_01.txt", "GEOID,CDFP\n010010201001000,99\n")
+        z.writestr("NationalCD120.txt", "GEOID,STATEFP,COUNTYFP,TRACTCE,BLOCKCE,CDFP\n010010201001000,01,001,020100,1000,03\n")
+    monkeypatch.setattr(rr, "RAW", tmp_path)
+    assert rr.block_lines(120).to_dict("records") == [{"block": "010010201001000", "district": "AL-03"}]
+    blocks = pd.DataFrame({"old": ["AL-01", "AL-01", "GA-01", "GA-01"], "new": ["AL-01", "AL-02", "GA-01", "GA-02"], "people": [90.0, 10.0, 999.0, 1.0]})
+    assert changed_states(blocks) == {"AL"}
+
+
+def test_new_voters_is_signed_toward_the_democrat_and_zero_without_an_incumbent(monkeypatch):
+    kept = pd.DataFrame({"district_id": ["AL-01", "AL-02"], "retained": [0.6, 0.8]})
+    monkeypatch.setattr(rr, "incumbent_retention", lambda cycle: kept)
+    races = pd.DataFrame({"district_id": ["AL-01", "AL-02", "AL-03", "AL-04"], "status": ["D incumbent", "R incumbent", "Open", "R incumbent"]})
+    out = rr.add_new_voters({2022: races})[2022]
+    assert out.new_voters.tolist() == pytest.approx([-0.4, 0.2, 0.0, 0.0])
+    assert out.new_voters_within.tolist() == pytest.approx([-0.1, -0.1, 0.0, 0.0])
+
+
+def test_donor_measures_count_people_not_gifts_and_ignore_refunded_donors():
+    assert donor_key("SMITH, JOHN Q. MR.", "606011234") == donor_key("Smith, John", "60601")
+    assert donor_key("SMITH, JOHN", "60601") != donor_key("SMITH, JANE", "60601")
+    line = ["C00000001", "N", "Q2", "P", "1", "15", "IND", "SMITH, JOHN", "X", "IL", "60601", "", "", "06152024", "500", "", "t", "1", "", "", "9"]
+    assert parse_line(("|".join(line) + "\n").encode())[:5] == ("C00000001", "15", "IL", "06152024", 500.0)
+    assert parse_line(("|".join(line[:18] + ["X"] + line[19:]) + "\n").encode()) is None
+    assert parse_line(("|".join(line[:6] + ["ORG"] + line[7:]) + "\n").encode()) is None
+    rows = pd.DataFrame({"committee_id": ["a", "a", "a", "a", "b"], "state": ["IL", "IL", "CA", "IL", "IL"], "donor": ["p", "p", "q", "gone", "p"],
+                         "amount": [100.0, 100.0, 600.0, 0.0, 50.0], "date": "06152024"})
+    earlier = pd.DataFrame({"committee_id": ["a"], "donor": ["q"]})
+    donors = committee_donors(rows, earlier)
+    measures = race_measures(donors, pd.Series({"IL-01": "a", "IL-02": None, "IL-03": "b"}), pd.Series({"IL-01": "IL", "IL-02": "IL", "IL-03": "IL"}))
+    assert measures.loc["IL-01"].to_dict() == pytest.approx({"donors": 2, "local": 1, "top10": 1.0, "repeat": 0.75, "in_state": 0.25})
+    assert measures.loc["IL-02"].to_dict() == pytest.approx({"donors": 0, "local": 0, "top10": 0, "repeat": 0, "in_state": 0})
+    assert gifts_through_june(pd.DataFrame({"date": ["12312023", "06302024", "07012024", "12312022", "bad"]}), 2024).date.tolist() == ["12312023", "06302024"]
