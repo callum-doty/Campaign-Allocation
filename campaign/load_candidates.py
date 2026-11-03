@@ -48,6 +48,12 @@ top spender had no House report through June 30: a Senate run (Weil,
 FL-06; Cotton, AR-04), a campaign that ended (Chatzky, NY-17), or a primary
 loser. Several of the right nominees were incumbents (Clyde, GA-09;
 Foushee, NC-04; Fine, FL-06, whom FEC still lists as a challenger).
+Spending can't see a primary, though: FEC's flag and a big budget both
+survive losing one. Checking every race against Wikipedia's nominee sections
+on 2026-11-02 changed 128 candidates, 15 of them incumbents not on the
+ballot (Mills, FL-07; Goldman, NY-10; Edwards, who withdrew after winning
+NC-11's primary). A nominee with no FEC record is listed with no ID and
+counts as $0. Louisiana's page lists no nominees, so it keeps the guess.
 """
 
 import csv

@@ -31,20 +31,31 @@ import pandas as pd
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "fec"
 JULY = {"Q2", "M7"}
-MONEY = {"total_receipts_ytd": "raised", "total_disbursements_ytd": "spent"}
+MONEY = {"total_receipts_ytd": "raised", "total_disbursements_ytd": "spent", "cash_on_hand_end_period": "cash"}
 OWN = ["candidate_contribution_ytd", "loans_made_by_candidate_ytd"]
 
 
-def load_early_money(cycle):
-    """Indexed by FEC candidate ID: raised, spent, own (dollars through June 30)."""
-    reports = pd.read_csv(RAW / f"reports_{cycle}.csv", dtype={"committee_id": str})
-    reports["end"] = pd.to_datetime(reports.coverage_end_date.str[:10])
+def latest_july(reports, cycle):
+    """Each committee's latest version of its July report, or the pre-election report standing in for it."""
+    reports = reports.assign(end=pd.to_datetime(reports.coverage_end_date.str[:10]))
     july = reports[reports.report_type.isin(JULY)]
     stand_in = reports[~reports.report_type.isin(JULY)
                        & reports.end.between(pd.Timestamp(f"{cycle}-06-01"), pd.Timestamp(f"{cycle}-07-15"))]
     stand_in = stand_in[~stand_in.committee_id.isin(july.committee_id)]
-    latest = (pd.concat([july, stand_in]).sort_values(["end", "receipt_date", "file_number"])
-              .drop_duplicates("committee_id", keep="last"))
+    return (pd.concat([july, stand_in]).sort_values(["end", "receipt_date", "file_number"])
+            .drop_duplicates("committee_id", keep="last"))
+
+
+def load_debts(cycle):
+    """Series, committee_id -> debts owed on the July report, dollars. From fetch_reports with DEBT_FIELDS."""
+    debts = latest_july(pd.read_csv(RAW / f"debts_{cycle}.csv", dtype={"committee_id": str}), cycle)
+    return debts.set_index("committee_id").debts_owed_by_committee.fillna(0.0)
+
+
+def load_early_money(cycle):
+    """Indexed by FEC candidate ID: committee_id, raised, spent, own, cash (dollars, through June 30)."""
+    reports = pd.read_csv(RAW / f"reports_{cycle}.csv", dtype={"committee_id": str})
+    latest = latest_july(reports, cycle)
 
     def links_in(files):
         found = [pd.read_csv(f, sep="|", header=None, dtype=str, usecols=[0, 3, 5],
@@ -58,5 +69,6 @@ def load_early_money(cycle):
     links = pd.concat([links, later[~later.cand_id.isin(links.cand_id)]]).drop_duplicates(["cand_id", "committee_id"])
     money = latest.merge(links[["cand_id", "committee_id"]], on="committee_id").rename(columns=MONEY)
     money["own"] = money[OWN].fillna(0).sum(axis=1)
-    money = money[["cand_id", "raised", "spent", "own"]].fillna(0)
+    money["cash"] = money.get("cash", 0.0)
+    money = money[["cand_id", "committee_id", "raised", "spent", "own", "cash"]].fillna({"raised": 0, "spent": 0, "own": 0, "cash": 0})
     return money.sort_values("raised").drop_duplicates("cand_id", keep="last").set_index("cand_id")

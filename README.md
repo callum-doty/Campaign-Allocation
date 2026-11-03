@@ -18,8 +18,11 @@ Where should a party committee spend its money across House races? This repo ans
 - **Neither strategy nor TV prices explain that.** In a two-player game against NRCC, the equilibrium puts almost nothing in safe seats. DCCC already spends about half as much per race in the costliest TV markets. No spender shifts toward mail where TV is most expensive.
 - **Judged with what a Sept 1 decision could see, part of DCCC's safe-seat spending stops looking over-cautious.** A forecast built from the Sept 1 polls plus the usual fall drift (about 2 points toward Republicans, with its spread as extra uncertainty) is about as accurate on average as the final-poll forecast (log loss 0.085 against 0.086, though only 2020 is better) and its 80% seat ranges hold the result in all 5 backtest years, 2020 included. Under it, DCCC's share of money in 80%+ seats falls from 22% to 18% (2020: 30% to 20%). Judging each dollar instead by the forecast on the date it reached voters (checkpoints from Sept 1 to Oct 25, each with that day's polls and the outside money out by then), the share is 19%: later in the fall the polls and outside money had mostly moved toward what the final polls say. What's left still implies a dollar in a safe seat works 1.5-3.3 times as hard as one in a close race. Through the fall the national uncertainty shrinks, but the race forecasts don't get sharper.
 - **If persuasion fades in days, when DCCC spends matters more than where.** TV-ad experiments find persuasion has a half-life of a few days, and many voters cast ballots weeks before Election Day (each state's share from the federal Election Administration and Voting Survey). Counting each dollar by how much of its effect is left when voters vote (4-day half-life), DCCC's money landed at 23-43% of what the same dollars could count over each state's best two weeks. Re-timing within the same races would gain 0.4-1.4 expected seats per cycle, against 0.05-0.19 for moving money between races (0.3-0.9 at an 8-day half-life), before the higher price of late airtime. Timing doesn't explain the safe-seat spending.
+- **In 2026 both committees spend heavily where the forecast sees little doubt.** Through Oct 14, NRCC has spent $82M to DCCC's $61M, in largely the same seats, with 45% of DCCC's money in seats it's 80%+ to win and 44% of NRCC's in seats it's under 20% to win (31% and 36% with symmetric money). In 2016-2024, seats with committee money ran closer than the forecast, more than seats without it, so part of this may be the forecast's overconfidence rather than waste.
 - **Household stress doesn't explain where the polls miss.** Over the 12 elections with a final RealClearPolitics generic-ballot average (2002-2024), neither the household cost basket from the HOUSING AFFORDABILITY TRACKER (its own items and weights, pulled from FRED) nor a credit-and-labor stress index predicts where the House vote lands relative to the polls. Both were fixed before being tested, and both make the prediction worse, leaving one election out and forward in time. In 2022, with the basket up 14.5%, the president's party ran only 0.3 points behind its polls. The same holds against the polls on Sept 1, when the allocation decision is made. A ballot built from economics alone misses the House vote by 5.3-6.7 points leaving one election out, against 3.4 for the September polls and 2.4 for the final ones. The polls' own lean matters more: Democrats ran behind their Sept 1 polls in 9 of 12 years, by 3.0 points on average, under presidents of both parties.
 - **2026:** the new maps cost Democrats about four Harris-won districts, but a 3-point move in the national environment swings about a dozen expected seats. With polling error shared nationally and within each state, and the size of a national miss treated as uncertain (it rests on seven elections), the model gives Democrats a 96% chance of a majority (98% if that size were known), which is still likely optimistic.
+
+- **What campaigns buy doesn't improve the forecast beyond what they spent.** Splitting spending through June 30 into fundraising, voter contact and overhead adds nothing to raised minus spent. Candidates do move out of TV in expensive markets, and polling tends to lead to TV the next quarter. Donor data and treating the generic ballot as a brand survey don't clear the same bar. Across five redraws, incumbents ran better the more of their old voters they kept, but the redraws disagree and it barely helps a forecast. See [`SPENDING.md`](SPENDING.md).
 
 ## Run it
 
@@ -48,6 +51,7 @@ campaign/
   load_pvi.py               partisan lean on each election's own lines
   load_results.py           House results (fusion lines, state party labels)
   load_candidates.py        FEC nominees matched to the ballot
+  load_coordinated.py       DCCC's and NRCC's coordinated spending (Schedule F)
   load_early_money.py       each campaign's money through June 30 (FEC July report)
   load_expenditures.py      every independent expenditure, cleaned, with its channel
   load_spending.py          independent expenditures totalled by district
@@ -84,15 +88,32 @@ campaign/
   national_test.py          does household stress explain the national polling miss?
   report.py                 write REPORT.md
   export_dataset.py         every candidate and race in one CSV (not part of run.py)
+  coordinated_allocation.py where that money went in 2026, against earlier years at the same date
   freeze_forecast.py        the 2026 forecast under each money spec, written before results (not part of run.py)
+  spending_report.py        write SPENDING.md: what campaigns buy and whether it predicts anything (not part of run.py)
+  load_oppexp.py            campaigns' operating expenditures, with memo rows handled
+  classify_purpose.py       what each payment bought, from its purpose and vendor
+  spending_features.py      what a forecaster could read from that by June 30
+  spending_signal.py        whether those features beat the June 30 surplus
+  mine_spending.py          campaign clusters, association rules, TV-market test
+  competitive_response.py   do the committees react to each other, week by week?
+  market_spillover.py       do committees spend more where close races share a TV market?
+  redrawn_retention.py      how much of a new district an incumbent already represented
+  load_donors.py            who gave to each nominee by June 30, from FEC's individual files
+  google_ads.py             early Google ad spending by nominees
+  brand_test.py             whether the generic ballot acts like a brand survey: pass-through, and lean by money
   plots/                    one chart per file
 data/generic_ballot.csv     final polling averages, 2002-2026, with sources
 data/generic_ballot_dated.csv  polling averages on five dates each fall, 2002-2024, with sources
-data/nominees_2026.csv      2026 nominees checked by hand where the top-spender guess fails, with sources
+data/nominees_2026.csv      2026 nominees where the top-spender guess fails, checked by hand or against Wikipedia's nominee sections, with sources
 data/all_candidates.csv     everything above in one table, a row per D or R candidate per race (python -m campaign.export_dataset)
 data/all_candidates_columns.csv  what each of its columns is
 data/wikipedia_views.csv    nominees' page views, Jan 1-Aug 31, competitive races in 2018, 2022 and 2024
 data/forecast_freeze_2026.csv, .json  those forecasts: each race, then each fit and seat total
+data/forecast_freeze_2026_v2.csv, .json  the same with corrected nominees and each race's committee money
+data/spending_candidate_2026.csv  the one spending feature that passed its test, written down before 2026 results
+data/retention_candidate_2026.csv  a weaker candidate, how much of a district is new to its incumbent, also written before results
+data/purpose_gold.csv       blind-labeled payments used to measure the purpose categories
 tests/test_model.py
 ```
 
@@ -102,7 +123,7 @@ tests/test_model.py
 - House election returns: **MIT Election Data and Science Lab**, *U.S. House 1976-2024*, Harvard Dataverse, [doi:10.7910/DVN/IG0UN2](https://doi.org/10.7910/DVN/IG0UN2) (CC0).
 - Campaign finance: **Federal Election Commission** [bulk data](https://www.fec.gov/data/browse-data/?tab=bulk-data) and [API](https://api.open.fec.gov/developers/).
 - TV markets by congressional district: **[Jonathan Cervas](https://jonathancervas.com/maps/media-markets/)**, derived from Nielsen market boundaries and Census county estimates. Parsed from his page at run time and not redistributed here.
-- 2026 nominees in districts where FEC data alone picks the wrong candidate: checked by hand against Wikipedia's 2026 House election pages and news reports, one source per row in [`data/nominees_2026.csv`](data/nominees_2026.csv).
+- 2026 nominees in districts where FEC data alone picks the wrong candidate: checked by hand or against the nominee sections of Wikipedia's 2026 House election pages, one source per row in [`data/nominees_2026.csv`](data/nominees_2026.csv).
 - Generic-ballot averages: **RealClearPolitics** / RealClearPolling, compiled in [`data/generic_ballot.csv`](data/generic_ballot.csv) (final averages, from 2002) and [`data/generic_ballot_dated.csv`](data/generic_ballot_dated.csv) (the average on five dates each fall, read from RealClearPolitics' daily series for 2008-2024; for 2002-2006, which have none, each nonpartisan pollster's latest poll as RealClearPolitics lists them).
 - How each state's ballots were cast, 2016-2024: **U.S. Election Assistance Commission**, Election Administration and Voting Survey ([datasets](https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)), downloaded at run time.
 - Household prices and credit/labor series: **FRED**, Federal Reserve Bank of St. Louis ([fred.stlouisfed.org](https://fred.stlouisfed.org)), no key needed. The basket's items and 1-3 weights come from the HOUSING AFFORDABILITY TRACKER sheet; each item's FRED series is the one matching that sheet's history (`household_index.py`).
@@ -112,4 +133,4 @@ tests/test_model.py
 - **The effect of party money is assumed, not measured.** Public data can't separate it from the reasons money goes where it goes. Treat the allocation results as "under this assumption", and replace it with measured effects (for example randomized holdouts on mail or ad programs) when you have them. The break-even effect in the report is the number to compare a measured effect against. Both it and the implied-belief ratios still assume the same curve in every race.
 - **How fast persuasion fades is assumed**, from TV-ad experiments (half-life 4 days, with 2 and 8 shown), and early ballots are spread evenly over the last three weeks. The re-timing gain ignores the higher price of late airtime and any lasting effect of money, so it is an upper bound under that assumption.
 - **The main forecast uses the final pre-election generic ballot.** The report adds the forecast as it stood on five dates from Sept 1 to Oct 25 (that day's polls plus the usual drift to Election Day, and the outside money out by then) and redoes the safe-seat readings with it, every dollar at Sept 1 and each dollar at the date it was spent. Candidates' own money still counts only through June 30, since later FEC reports aren't downloaded.
-- **No 2026 allocation analysis.** After *NRSC v. FEC* (June 2026), DCCC spends through coordinated expenditures, which aren't in the bulk independent-expenditure file.
+- **2026's allocation reading is partial.** After *NRSC v. FEC* (June 2026), DCCC and NRCC spend through coordinated expenditures, read here from each filing through Oct 14. Their purpose text separates only media from mail, their dates are when the committee paid, and section 5's fuller analysis still covers 2016-2024.

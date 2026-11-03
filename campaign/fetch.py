@@ -20,6 +20,9 @@ All sources are public. One needs a free key (FEC's API, below):
   them in runoff and special-election states, which the bulk files don't
   have. Needs a free key from
   https://api.data.gov/signup/ in the FEC_API_KEY environment variable.
+- FEC electronic filings: DCCC's and NRCC's Schedule F (coordinated spending)
+  rows for 2026, from each monthly report as filed. The API lists the reports
+  (same key); its own Schedule F rows trail the filings by weeks.
 - Jonathan Cervas: TV markets and congressional districts (2022-2026
   lines), embedded in his interactive page, which is saved as-is.
   https://jonathancervas.com/maps/media-markets/
@@ -37,6 +40,7 @@ All sources are public. One needs a free key (FEC's API, below):
   https://en.wikipedia.org/w/api.php
 """
 
+import csv
 import io
 import os
 import time
@@ -82,6 +86,13 @@ FEC_BULK = "https://www.fec.gov/files/bulk-downloads"
 FEC_REPORTS = "https://api.open.fec.gov/v1/reports/house-senate/"
 JULY_REPORTS = ("Q2", "M7")    # quarterly and monthly filers' reports through June 30
 STAND_INS = ("12P", "12R", "12S", "12C")   # pre-election reports, which replace the July report when due near it
+COORDINATED_CYCLES = (2026,)    # the limits fell in June 2026; before that this money was small
+PARTY_COMMITTEES = {"C00000935": "dccc", "C00075820": "nrcc"}
+FEC_COMMITTEE_REPORTS = "https://api.open.fec.gov/v1/committee/{}/reports/"
+SCHEDULE_F = {2: "tran_id", 16: "payee", 27: "date", 28: "amount", 30: "purpose", 33: "cand_id", 34: "cand_last",
+              35: "cand_first", 40: "state", 41: "district"}     # columns of an SF row, filing format 8.5
+SF_MEMO = 42
+DEBT_FIELDS = ["committee_id", "report_type", "coverage_end_date", "receipt_date", "file_number", "debts_owed_by_committee"]
 REPORT_FIELDS = ["committee_id", "report_type", "coverage_end_date", "receipt_date", "file_number",
                  "total_receipts_ytd", "total_disbursements_ytd", "cash_on_hand_end_period",
                  "candidate_contribution_ytd", "loans_made_by_candidate_ytd",
@@ -129,6 +140,11 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
                          f"(Dataverse asks for a short guestbook form) and save it as "
                          f"{RAW / 'house_1976_2024.csv'}")
 
+    for cycle in COORDINATED_CYCLES:
+        dest = RAW / "fec" / f"coordinated_{cycle}.csv"
+        if cycle in cycles and (not dest.exists() or cycle in refresh):
+            fetch_coordinated(cycle, dest)
+
     states = pd.read_csv(RAW / "house_1976_2024.csv", usecols=["state", "state_po"]).drop_duplicates()
     states = dict(zip(states.state_po, states.state.str.title()))
     for cycle in cycles:
@@ -137,10 +153,48 @@ def fetch(cycles=(2012, 2014, 2016, 2018, 2020, 2022, 2024, 2026), refresh=()):
             lookup_quality(cycle, load_candidates(cycle, load_results(cycle)), states, dest, HEADERS)
 
 
-def fetch_reports(cycle, dest):
+def schedule_f_rows(lines):
+    """The Schedule F rows of one filing's CSV lines, without memo rows. A memo row restates part of the
+    row above it (who a vendor paid), so counting it counts the money twice."""
+    rows = [r for r in csv.reader(lines) if r and r[0].upper().startswith("SF")]
+    return [{name: r[i] for i, name in SCHEDULE_F.items()} for r in rows if r[SF_MEMO].strip().upper() != "X"]
+
+
+def fetch_coordinated(cycle, dest):
+    """Every Schedule F row in the latest version of each report DCCC and NRCC filed for `cycle`. Each filing's
+    rows must add up to the coordinated spending on its summary page, or nothing is saved."""
+    key = os.environ.get("FEC_API_KEY")
+    if not key:
+        raise SystemExit("Set FEC_API_KEY to a free key from https://api.data.gov/signup/ "
+                         "to list DCCC's and NRCC's reports.")
+    rows = []
+    for committee, bucket in PARTY_COMMITTEES.items():
+        resp = requests.get(FEC_COMMITTEE_REPORTS.format(committee), params={
+            "api_key": key, "cycle": cycle, "per_page": 100, "sort": "-coverage_end_date"}, headers=HEADERS, timeout=120)
+        if not resp.ok:                              # not raise_for_status: its message would print the key
+            raise SystemExit(f"FEC API error {resp.status_code} for {bucket}: {resp.text[:200]}")
+        for report in resp.json()["results"]:
+            filed = report["coordinated_expenditures_by_party_committee_period"] or 0
+            if not report["most_recent"] or not filed:
+                continue
+            print(f"downloading {bucket} {report['report_type']} ({report['file_number']})")
+            filing = requests.get(report["csv_url"], headers=HEADERS, timeout=600)
+            filing.raise_for_status()
+            found = schedule_f_rows(io.StringIO(filing.content.decode("latin-1"), newline=""))
+            total = sum(float(r["amount"]) for r in found)
+            if abs(total - filed) > 0.01:
+                raise SystemExit(f"{bucket} {report['report_type']}: rows add to {total:,.2f}, filing says {filed:,.2f}; not saved")
+            rows += [{"bucket": bucket, "report_type": report["report_type"], "file_number": report["file_number"], **r}
+                     for r in found]
+    pd.DataFrame(rows).to_csv(dest, index=False)
+    print(f"saved {len(rows)} coordinated expenditures for {cycle}")
+
+
+def fetch_reports(cycle, dest, fields=None):
     """Every House campaign's July report (through June 30) and
     pre-election reports for the election year, each version the FEC
     received by Aug 31 (amendments included), with cycle-to-date totals."""
+    fields = fields or REPORT_FIELDS
     key = os.environ.get("FEC_API_KEY")
     if not key:
         raise SystemExit("Set FEC_API_KEY to a free key from https://api.data.gov/signup/ "
@@ -159,10 +213,10 @@ def fetch_reports(cycle, dest):
         if not resp.ok:                              # not raise_for_status: its message would print the key
             raise SystemExit(f"FEC API error {resp.status_code} for {cycle}: {resp.text[:200]}")
         data = resp.json()
-        rows += [{f: r.get(f) for f in REPORT_FIELDS} for r in data["results"]]
+        rows += [{f: r.get(f) for f in fields} for r in data["results"]]
         pages = data["pagination"]["pages"]
         page += 1
-    reports = pd.DataFrame(rows, columns=REPORT_FIELDS)
+    reports = pd.DataFrame(rows, columns=fields)
     repeats = int(reports.duplicated().sum())          # the API lists a few filings twice, identically
     if len(reports) != data["pagination"]["count"] or repeats > 0.005 * len(reports):
         raise SystemExit(f"FEC reports for {cycle}: {len(reports)} rows ({repeats} repeated), "
