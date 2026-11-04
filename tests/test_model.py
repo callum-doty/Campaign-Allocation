@@ -23,6 +23,7 @@ from campaign import load_presidential as lp  # noqa: E402
 from campaign import load_results as lres  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
+from campaign import basket_search as bs  # noqa: E402
 from campaign.brand_test import add_money_bands, national_passthrough, scaled  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.classify_purpose import by_rules, classify_text, classify_vendors, vendor_categories, vendor_key  # noqa: E402
@@ -1044,3 +1045,146 @@ def test_donor_measures_count_people_not_gifts_and_ignore_refunded_donors():
     assert measures.loc["IL-01"].to_dict() == pytest.approx({"donors": 2, "local": 1, "top10": 1.0, "repeat": 0.75, "in_state": 0.25})
     assert measures.loc["IL-02"].to_dict() == pytest.approx({"donors": 0, "local": 0, "top10": 0, "repeat": 0, "in_state": 0})
     assert gifts_through_june(pd.DataFrame({"date": ["12312023", "06302024", "07012024", "12312022", "bad"]}), 2024).date.tolist() == ["12312023", "06302024"]
+
+
+def test_signed_baskets_count_one_side_only():
+    d = np.array([[1, 1], [1, 1], [0, 1], [0, 0]], dtype=bool)
+    r = np.array([[0, 0], [1, 1], [1, 1], [0, 1]], dtype=bool)
+    assert bs.signed(d, r, [0, 1]).tolist() == [1.0, 0.0, -1.0, 0.0]
+
+
+def test_what_is_left_is_clear_of_cells_and_single_items():
+    rng = np.random.default_rng(1)
+    d, r = rng.random((400, 3)) < 0.5, rng.random((400, 3)) < 0.5
+    cell = rng.integers(0, 4, 400)
+    left, share = bs.what_is_left(d, r, [0, 1, 2], cell)
+    assert 0 < share < 1
+    for i in range(3):
+        assert left @ bs.within(bs.signed(d, r, [i]), cell) == pytest.approx(0, abs=1e-8)
+    assert pd.Series(left).groupby(cell).mean().abs().max() < 1e-9
+    deeper, deeper_share = bs.what_is_left(d, r, [0, 1, 2], cell, depth=2)
+    assert left @ bs.within(bs.signed(d, r, [0, 1]), cell) != pytest.approx(0, abs=1e-8)
+    assert deeper @ bs.within(bs.signed(d, r, [0, 1]), cell) == pytest.approx(0, abs=1e-8)
+    assert deeper_share < share
+
+
+def test_flip_bar_matches_one_normal_test():
+    sums = np.random.default_rng(2).normal(size=(1, 400))
+    assert np.quantile(bs.flip_bar(sums, draws=4000), 0.95) == pytest.approx(1.96, abs=0.1)
+
+
+def test_flip_bar_rises_with_independent_baskets():
+    sums = np.random.default_rng(3).normal(size=(100, 400))
+    assert np.quantile(bs.flip_bar(sums, draws=1000), 0.95) > 3
+
+
+def _search(n=1200, seed=4, effect=0.0):
+    rng = np.random.default_rng(seed)
+    d, r = rng.random((n, 4)) < 0.5, rng.random((n, 4)) < 0.5
+    frame = pd.DataFrame({"cycle": rng.choice(bs.BACKTEST, n), "status": rng.choice(["D incumbent", "R incumbent", "Open"], n), "near": rng.random(n) < 0.3, "e": rng.normal(0, 7, n)})
+    frame["district_id"] = rng.choice(["AA", "BB", "CC", "DD", "EE", "FF", "GG", "HH"], n)
+    frame["cell"] = frame.cycle.astype(str) + frame.status
+    frame["cluster"] = pd.factorize(frame.district_id + frame.cycle.astype(str))[0]
+    frame["e"] += effect * bs.signed(d, r, [0, 1])
+    return {"frame": frame, "D": d, "R": r, "names": ["a", "b", "c", "e"]}
+
+
+def test_baskets_finds_a_planted_pair_and_ignores_its_coattails():
+    search = _search(effect=8.0)
+    found = bs.baskets(search)
+    table = bs.score_baskets(found, search, float(np.quantile(bs.flip_bar(bs.cluster_sums(found, search), draws=500), 0.95))).set_index("basket")
+    assert table.t["a + b"] == table.t.abs().max()
+    assert table.named["a + b"]
+    assert not table.named.drop("a + b").any()
+
+
+def test_baskets_finds_nothing_in_noise():
+    search = _search(seed=5)
+    found = bs.baskets(search)
+    table = bs.score_baskets(found, search, float(np.quantile(bs.flip_bar(bs.cluster_sums(found, search), draws=500), 0.95)))
+    assert not table.named.any()
+
+
+def test_baskets_drops_a_copy_of_one_item():
+    search = _search(seed=6)
+    search["D"][:, 1], search["R"][:, 1] = search["D"][:, 0], search["R"][:, 0]
+    assert (0, 1) not in bs.baskets(search)["combos"]
+
+
+def test_party_blind_shift_flips_when_the_sides_swap():
+    rng = np.random.default_rng(7)
+    d, r = (rng.random((300, 4)) < 0.5).astype(float), (rng.random((300, 4)) < 0.5).astype(float)
+    trees = bs.fit_trees(d, r, 5 * (d[:, 0] - r[:, 0]) + rng.normal(0, 3, 300))
+    shift = bs.party_blind_shift(trees, d, r)
+    assert shift == pytest.approx(-bs.party_blind_shift(trees, r, d))
+    assert np.corrcoef(shift, d[:, 0] - r[:, 0])[0, 1] > 0.8
+
+
+def _item_race():
+    x = pd.DataFrame({"district_id": ["AA-01", "AA-02", "BB-01", "BB-02"], "status": ["D incumbent", "R incumbent", "Open", "D incumbent"], "redrawn": [1.0, 0.0, 0.0, 0.0],
+                      "fresh_d": [1.0, 0.0, 0.0, 0.0], "fresh_r": [0.0, 0.0, 0.0, 0.0], "q_d": [0.0, 1.0, 0.0, 0.0], "q_r": [0.0, 0.0, 1.0, 0.0]})
+    d = pd.DataFrame({name: [1.0, 2.0, 3.0, np.nan] for name in bs.MEASURES})
+    r = pd.DataFrame({name: [5.0, 6.0, 7.0, 8.0] for name in bs.MEASURES})
+    return x, {"d": d, "r": r}
+
+
+def test_side_items_never_read_missing_as_low():
+    x, measures = _item_race()
+    items = bs.side_items(x, measures, pd.Series({"AA-01": 0.5, "BB-02": 0.9}))
+    assert not items["d"].raised_lo[x.district_id == "BB-02"].any()
+    assert not items["d"].raised_hi[x.district_id == "BB-02"].any()
+    assert items["d"].raised_lo.iloc[0]
+    assert items["r"].raised_hi.iloc[3]
+
+
+def test_side_items_belong_to_the_right_side():
+    x, measures = _item_race()
+    d, r = (bs.side_items(x, measures, pd.Series({"AA-01": 0.5, "BB-02": 0.9}))[side] for side in "dr")
+    assert d.incumbent.tolist() == [True, False, False, True] and r.challenger.tolist() == [True, False, False, True]
+    assert d.first_term.iloc[0] and r.opp_first_term.iloc[0] and not r.first_term.iloc[0]
+    assert d.low_retention.tolist() == [True, False, False, False] and not r.low_retention.any()
+    assert d.open.tolist() == r.open.tolist() == [False, False, True, False]
+
+
+def _seats(n=900, seed=8, effect=0.0):
+    rng = np.random.default_rng(seed)
+    score = rng.normal(size=n)
+    frame = pd.DataFrame({"cycle": rng.choice(bs.BACKTEST, n), "status": rng.choice(["D incumbent", "Open"], n), "district_id": rng.choice([f"S{i:02d}" for i in range(40)], n),
+                          "mu_own": rng.normal(25, 8, n), "committee_money": rng.random(n) < 0.05, "e_own": rng.normal(0, 7, n) + effect * score})
+    return frame, pd.Series(score, index=frame.index)
+
+
+def test_miss_test_finds_a_planted_miss_in_the_expected_direction():
+    seats, score = _seats(effect=-2.0)
+    result = bs.miss_test(seats, score, draws=2000)
+    assert result["passes"] and result["t"] < 0
+    assert result["points_per_sd"] == pytest.approx(-2.0, abs=0.5)
+
+
+def test_miss_test_rejects_the_wrong_sign_and_noise():
+    seats, score = _seats(effect=2.0)
+    assert not bs.miss_test(seats, score, draws=2000)["passes"]
+    seats, score = _seats(seed=9)
+    assert not bs.miss_test(seats, score, draws=2000)["passes"]
+
+
+def test_miss_test_only_reads_seats_without_committee_money():
+    seats, score = _seats(seed=10)
+    with_money = seats.assign(e_own=seats.e_own.where(~seats.committee_money, 1000.0))
+    assert bs.miss_test(with_money, score, draws=200)["t"] == pytest.approx(bs.miss_test(seats, score, draws=200)["t"])
+
+
+def test_flag_score_leaves_out_how_safe_the_seat_is():
+    rng = np.random.default_rng(11)
+    train = pd.DataFrame({f: rng.normal(size=500) for f in bs.FLAGS + ["mu_own"]})
+    train["entered"] = rng.random(500) < 0.1 + 0.2 * (train.mu_own > 0)
+    fit = bs.fit_entry(train)
+    assert bs.flag_score(fit, train.assign(mu_own=100.0)) == pytest.approx(bs.flag_score(fit, train))
+
+
+def test_run_refuses_to_write_over_results(tmp_path, monkeypatch):
+    done = tmp_path / "basket_results.json"
+    done.write_text("{}")
+    monkeypatch.setattr(bs, "RESULTS", done)
+    with pytest.raises(SystemExit):
+        bs.run()
