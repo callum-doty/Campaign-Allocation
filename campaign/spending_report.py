@@ -20,17 +20,22 @@ from .build_races import build_races
 from .channel_mix import BANDS, BAND_LABELS, HOUSE_MAJORITY_PAC
 from .classify_purpose import VAGUE, classify_text, vendor_key
 from .competitive_response import first_movers, response, weekly_panel
+from .coordinated_allocation import CAP_SHARE, COMMITTEES
+from .fcc_prices import airtime_multiple, price_evidence, reading_at
 from .fit_baseline import fit_baseline
 from .freeze_forecast import money_terms
 from .google_ads import add_google
 from .load_candidates import load_candidates
+from .load_coordinated import coordinated_by_race, load_coordinated
 from .load_donors import DONOR_FEATURES, add_donors, coverage, gifts_through_june, load_donors
 from .load_expenditures import load_expenditures
 from .load_media_markets import load_media_markets
 from .load_oppexp import categorize, load_oppexp, nominee_committees
 from .load_results import load_results
 from .market_spillover import shared_markets, spillover_fit
-from .mine_spending import (MIN_BUDGET, baskets, choose_k, clr, kmeans, rules, shares, spent_at_all, tv_substitution)
+from .mine_spending import (BENCHMARKS, MIN_BUDGET, NO_STRUCTURE, TV_RULE, agreement, baskets, benchmark_k, choose_k, clr, cluster_from_seat, kmeans, rules, share_clear, shares, spent_at_all,
+                            tv_substitution)
+from .plots.plot_campaign_types import plot_campaign_types
 from .national_test import national_table
 from .predict_margin import predict_margin
 from .redrawn_retention import (add_new_voters, carried_over, forecast_margin, incumbent_retention, retention_bands, retention_slope,
@@ -54,6 +59,8 @@ LABELS = {"persuasion_odds": "Money raised less fundraising costs", "contact_odd
           "new_voters": "Share of the district new to its incumbent", "new_voters_within": "The same, against that redraw's average",
           "pvi_low": "Lean counts differently under $2M seen by Sept 1", "pvi_log": "Lean counts differently by money seen by Sept 1"}
 CHOSEN_K = 3
+FCC_YEARS = (2024, 2026)
+FCC_FINISHED = 0.99
 LIVE_TESTS = {"accel": ROOT / "data" / "spending_candidate_2026.csv", "new_voters_within": ROOT / "data" / "retention_candidate_2026.csv"}
 MIN_CLUSTERS = 5
 TRAIN_THROUGH = 2018
@@ -170,6 +177,7 @@ def spending_report():
     table = pd.concat({c: shares(pre[c]) for c in DONE}, names=["cycle"]).query("total >= @MIN_BUDGET")
     x = clr(table).to_numpy()
     ks = choose_k(x)
+    benchmarks = {label: benchmark_k(x, make) for label, make in BENCHMARKS.items()}
     fitted = kmeans(x, CHOSEN_K)
     clustered = table.assign(cluster=fitted.labels_).join(people)
     clustered["won"] = np.where(clustered.margin.isna(), np.nan, np.where(clustered.party == "D", clustered.margin > 0, clustered.margin < 0))
@@ -180,9 +188,21 @@ def spending_report():
     incumbent_share = clustered.groupby("cluster").ici.apply(lambda s: (s == "I").mean())
     maintenance = incumbent_share[rest].idxmax()
     names[maintenance] = "Incumbent maintenance"
-    names[[c for c in rest if c != maintenance][0]] = "Broad build-up"
+    broad = [c for c in rest if c != maintenance][0]
+    names[broad] = "Broad build-up"
     wins = clustered.pivot_table(index="cluster", columns="ici", values="won", aggfunc="mean")
     forecast_clusters = cluster_signal(races, pre, CHOSEN_K)
+    forecast_two = cluster_signal(races, pre, 2)
+    plot_campaign_types(x, clustered, profile, names, order, ks, benchmarks, forecast_clusters, ROOT / "figures" / "15_campaign_types.png")
+    tv_by_june = table.Broadcast > TV_RULE
+    tv_match = {2: agreement(kmeans(x, 2).labels_ == 0, tv_by_june), CHOSEN_K: agreement(fitted.labels_ == order[0], tv_by_june)}
+    seat_fit = cluster_from_seat(clustered)
+    clear_share = share_clear(x, fitted.labels_)
+    shuffled, cloud = benchmarks.values()
+    late_real, late_benchmarks = ks.stability[ks.index > 4], pd.concat([b.stability[b.index > 4] for b in benchmarks.values()])
+    ks_table = "\n".join(f"| {label} | {' | '.join(f'{v:.2f}' for v in values)} |" for label, values in
+                         [("Silhouette", ks.silhouette), *((f"Silhouette, {n[0].lower() + n[1:]}", b.silhouette) for n, b in benchmarks.items()),
+                          ("Stability on resamples", ks.stability), *((f"Stability, {n[0].lower() + n[1:]}", b.stability) for n, b in benchmarks.items())])
 
     # TV
     fall_parts = []
@@ -297,6 +317,67 @@ def spending_report():
                           "p_surplus": norm.cdf(predict_margin(now, base_model) / base_model["sigma"]), "p_with_candidate": norm.cdf(predict_margin(now, model) / model["sigma"])}).round(6).to_csv(live_path, index=False)
 
     pct = lambda v: f"{v:.0%}"
+
+    # what the same airtime costs
+    print("reading FCC rates")
+    fcc = price_evidence(FCC_YEARS)
+    late = fcc["table"][fcc["table"].period == "late"].set_index(["cycle", "a", "b"])
+    early = fcc["table"][fcc["table"].period == "early"].set_index(["cycle", "a", "b"])
+    early_pairs = early.n.sum()
+    early_outside = {y: early.loc[(y, "outside", "candidate")] for y in FCC_YEARS}
+    clean = fcc["unflagged"][fcc["unflagged"].period == "late"].set_index(["cycle", "a", "b"])
+    said = lambda r, mid="median", low="low", high="high": "no matches" if not r["n"] else f"{r[mid]:.2f}x (too few stations)" if r["stations"] < MIN_CLUSTERS else f"{r[mid]:.2f}x ({r[low]:.2f}-{r[high]:.2f})"
+    price_rows = []
+    for label, a, b in (("Party, coordinated, against a candidate", "coordinated", "candidate"), ("Party, independent, against a candidate", "party_independent", "candidate"),
+                        ("Outside groups against a candidate", "outside", "candidate"), ("Party, independent, against coordinated", "party_independent", "coordinated")):
+        row = {"Buyer": label}
+        for y in FCC_YEARS:
+            r = late.loc[(y, a, b)]
+            row[f"{y}: all comparisons"] = said(r)
+            row[f"{y}: typical station"] = said(r, "typical", "typical_low", "typical_high")
+            row[f"{y}: comparisons, stations"] = f"{r['n']:.0f}, {r['stations']:.0f}"
+        price_rows.append(row)
+    price_view = number_table(pd.DataFrame(price_rows), {})
+    coord = {y: late.loc[(y, "coordinated", "candidate")] for y in FCC_YEARS}
+    outside = {y: late.loc[(y, "outside", "candidate")] for y in FCC_YEARS}
+    party_ie = late.loc[(FCC_YEARS[0], "party_independent", "candidate")]
+    direct = late.loc[(FCC_YEARS[0], "party_independent", "coordinated")]
+    premium = party_ie["median"] / coord[FCC_YEARS[0]]["median"]
+    top_price = direct["typical_high"]
+    busiest = fcc["busiest"][FCC_YEARS[0]]
+    read_count = {y: len(fcc["read"][y]) for y in FCC_YEARS}
+    finished = all(read_count[y] >= FCC_FINISHED * fcc["sample"][y] for y in FCC_YEARS)
+    fcc_read = " and ".join(f"{read_count[y]:,} of {fcc['sample'][y]:,} for {y}" for y in FCC_YEARS)
+    fcc_status = f"Read: {fcc_read}. FCC answers the rest with an error." if finished else f"**These numbers are interim.** The sample's files come down slowly and in random order, and so far it has {fcc_read}, so they'll tighten."
+    readable = {y: fcc["read"][y].readable.mean() for y in FCC_YEARS}
+    with_lines = {y: (fcc["read"][y].lines > 0).mean() for y in FCC_YEARS}
+    fcc_stations = {y: fcc["read"][y].station.nunique() for y in FCC_YEARS}
+    fcc_markets = {y: fcc["read"][y].dma.nunique() for y in FCC_YEARS}
+    file_rows = pd.DataFrame([{"Files in the full listing": label, **{str(y): f"{fcc['files'][y].files.get(kind, 0):,} at {fcc['files'][y].stations.get(kind, 0):,} stations" for y in FCC_YEARS}}
+                              for label, kind in (("Party, independent", "party_independent"), ("Party, coordinated", "coordinated"), ("A party's name, but unclear which kind", "party_unclear"))])
+    file_view = number_table(file_rows, {})
+    live_races = forecast_margin(built, LIVE)
+    live_sigma = fit_baseline(pd.concat(built[c] for c in DONE))["sigma"]
+    live_spent = coordinated_by_race(LIVE).reindex(live_races.district_id).fillna(0.0)
+    live_channels = load_coordinated(LIVE).pivot_table(index="bucket", columns="channel", values="amount", aggfunc="sum", fill_value=0.0)
+    media_share = live_channels.Media / live_channels.sum(axis=1)
+    airtime = {}
+    for who_is, sign in COMMITTEES:
+        own, x = live_races.mu.to_numpy() * sign, live_spent[who_is].to_numpy(float)
+        multiple = airtime_multiple(media_share[who_is], premium)
+        airtime[who_is] = {"money": x.sum(), "multiple": multiple, "plain": reading_at(own, live_sigma, x, 1.0, CAP_SHARE), "cheap": reading_at(own, live_sigma, x, multiple, CAP_SHARE),
+                           "top": reading_at(own, live_sigma, x, airtime_multiple(media_share[who_is], top_price), CAP_SHARE)}
+    airtime_view = number_table(pd.DataFrame([
+        {"Through Oct 14": "Coordinated money", **{who_is.upper(): f"${airtime[who_is]['money'] / 1e6:.0f}M" for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": "Filed as media", **{who_is.upper(): pct(media_share[who_is]) for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": "A dollar's airtime against an independent dollar, if all media is TV", **{who_is.upper(): f"{airtime[who_is]['multiple']:.2f}x" for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": "Independent money that would buy the same", **{who_is.upper(): f"${airtime[who_is]['money'] * airtime[who_is]['multiple'] / 1e6:.0f}M" for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": "Seats gained by reallocating: dollars as they are, then stretched", **{who_is.upper(): f"{airtime[who_is]['plain']['gain']:.2f}, then {airtime[who_is]['cheap']['gain']:.2f}" for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": "80%+ multiplier: dollars as they are, then stretched", **{who_is.upper(): f"{airtime[who_is]['plain']['multiplier']:.1f}x, then {airtime[who_is]['cheap']['multiplier']:.1f}x" for who_is, _ in COMMITTEES}},
+        {"Through Oct 14": f"At {top_price:.2f}x: seats gained, then 80%+ multiplier", **{who_is.upper(): f"{airtime[who_is]['top']['gain']:.2f}, then {airtime[who_is]['top']['multiplier']:.1f}x" for who_is, _ in COMMITTEES}}]), {})
+    folders = fcc["folders"]
+    without = {y: folders[y]["without"] for y in FCC_YEARS}
+    shared = fcc["shared"]
     bought_table = number_table(pd.DataFrame({"Category": bought.index, "Whole cycle": bought.to_numpy(), "Through June 30": bought_pre.to_numpy()}), {"Whole cycle": pct, "Through June 30": pct})
     signal_table = number_table(pd.DataFrame(signal_rows), {})
     profile_rows = pd.DataFrame({"Share of pre-June 30 spending": profile.columns, **{names[c]: profile.loc[c].to_numpy() for c in order}})
@@ -331,15 +412,16 @@ def spending_report():
     gold_d, gold_u = gold["dollars"], gold["uniform"]
     text = f"""# What House campaigns buy, and whether it predicts anything
 
-Generated by `python -m campaign.spending_report`. Every number is computed from the data unless marked otherwise. Covers the nominees' campaigns in {DONE[0]}-{DONE[-1]}: {sum(len(full[c]) for c in DONE):,} payments, ${total / 1e9:.1f}B, from FEC operating expenditures (Schedule B). {LIVE} is used only for the forecast candidate below.
+Generated by `python -m campaign.spending_report`. Every number is computed from the data unless marked otherwise. Covers the nominees' campaigns in {DONE[0]}-{DONE[-1]}: {sum(len(full[c]) for c in DONE):,} payments, ${total / 1e9:.1f}B, from FEC operating expenditures (Schedule B). {LIVE}'s results aren't in, so it appears only where a section says so.
 
 ## Summary
 
 - **Spending categories don't improve the forecast beyond the June 30 surplus.** The direct test, adding fundraising, voter-contact and overhead money to a forecast that already knows raised minus spent, makes log loss slightly {'worse' if within['mean']['split'] > 0 else 'better'} ({within['mean']['split']:+.5f}, better in {within.better['split']:.0f} of 5 years). The surplus itself remains the gain ({surplus_gain['mean']:+.5f} against the baseline, better in {surplus_gain['better']:.0f} of 5).
 - **The signals people expect mostly fail out of sample.** Discounting receipts by fundraising costs fits well but calls winners worse. Early incumbent polling does signal trouble in the fit, but doesn't help forecasts. Spending more on fundraising goes with doing better, not worse.
 - **Candidates do leave TV where it's expensive.** In competitive races in {min(bt)} and {max(bt)}, TV falls from {tv_table.Broadcast.iloc[0]:.0%} of fall budgets in the cheapest markets to {tv_table.Broadcast.iloc[-1]:.0%} in the costliest, while digital rises from {tv_table.Digital.iloc[0]:.0%} to {tv_table.Digital.iloc[-1]:.0%}. Independent spenders' TV share moves {tv_change('All outside groups') * 100:+.0f} points on the same comparison, and DCCC's {tv_change('DCCC') * 100:+.0f} (section 4).
+- **The same TV slot costs outside groups at least twice what it costs a candidate, and parties now buy at the candidate's price.** Late in the cycle, in stations' FCC files, coordinated party buys match candidates' rates ({coord[LIVE]['median']:.2f}x in {LIVE}), a party's independent buys cost {party_ie['median']:.2f}x in {FCC_YEARS[0]}, and outside groups pay {outside[FCC_YEARS[0]]['typical']:.1f}x and {outside[LIVE]['typical']:.1f}x at a typical station in {FCC_YEARS[0]} and {LIVE}. DCCC and NRCC all but stopped buying independently in {LIVE}. That could stretch a party's media dollar about {premium:.1f}x. Reallocating would gain about twice as much, but still under a seat, even with a {top_price:.0f}x price gap (section 7{'' if finished else ', interim while the download finishes'}).
 - **The one durable cross-category pattern is polling, then TV.** With size and race type held fixed, a campaign that puts at least 10% of one quarter's budget in polling is about {single_cross.test_conditional.min():.2f}-{single_cross.test_conditional.max():.2f} times as likely to put at least 10% of the next quarter's in TV, in later elections as well as the ones the rule was found in.
-- **Campaign types mostly re-measure incumbency.** Three spending profiles are stable, but they're weakly separated and don't help the forecast.
+- **Campaign types are weak and don't help the forecast.** Spending profiles have some real structure, but the clearest split is one column: whether a campaign was on TV by June.
 - **A second round of {len(SECOND)} ideas found {second_passes} that clear the bar.** Cash runway, burn rate, debt, channel combinations, purchase order and vendor loyalty all fall short.
 - **Donor data doesn't clear the bar either.** {donor_passes} of {len(DONOR_FEATURES)} features built from {gifts / 1e6:.1f} million itemized gifts pass. Donor counts fit strongly, but say little the money doesn't (section 2).
 - **Incumbents run better where they kept more of their old voters, but it barely helps a forecast.** Across {slope_all['n']} incumbents in five redraws, one who kept half their district ran about {slope_all['slope'] / 2:.1f} points behind one who kept all of it, and about {slope_close['slope'] / 2:.1f} in races the forecast rated close. The redraws disagree with each other, and the forecast gain is too small to separate from chance (section 6).
@@ -389,20 +471,27 @@ Across all three rounds, those whose interval is entirely on the harmful side: {
 
 ## 3. Campaign types
 
-K-means on pre-June 30 spending shares of {len(table):,} campaigns with at least ${MIN_BUDGET / 1e3:.0f}K spent.
+K-means on pre-June 30 spending shares of {len(table):,} campaigns with at least ${MIN_BUDGET / 1e3:.0f}K spent. Two benchmarks run the same steps on data with no kinds of campaign in it, averaged over three draws: each column shuffled on its own, and one Gaussian cloud with the same covariances. The benchmarks and the k = 2 column were added after the first results.
+
+![Campaign types](figures/15_campaign_types.png)
 
 | k | {' | '.join(str(k) for k in ks.index)} |
 |---|{'---|' * len(ks)}
-| Silhouette | {' | '.join(f'{v:.2f}' for v in ks.silhouette)} |
-| Stability on resamples | {' | '.join(f'{v:.2f}' for v in ks.stability)} |
+{ks_table}
 
-Three clusters repeat on resamples, but silhouettes this low mean they're regions of a continuum rather than distinct kinds of campaign.
+**There's some structure, but it's weak.** Silhouettes beat both benchmarks at every k: {ks.silhouette[CHOSEN_K]:.2f} against {shuffled.silhouette[CHOSEN_K]:.2f} and {cloud.silhouette[CHOSEN_K]:.2f} at k = {CHOSEN_K}. But the best is {ks.silhouette.max():.2f}, and the usual rule of thumb calls {NO_STRUCTURE} or below no substantial structure (Kaufman and Rousseeuw, 1990, general knowledge, not checked here). At k = {CHOSEN_K}, {clear_share:.0%} of campaigns clear it individually.
+
+**Stability says less than it seems to.** Shuffled data repeats about as well up to k = 4: {shuffled.stability[CHOSEN_K]:.2f} against {ks.stability[CHOSEN_K]:.2f} at k = {CHOSEN_K}. Shuffling keeps each column's zeros, and {(table.Broadcast == 0).mean():.0%} of campaigns have no broadcast by June, so that column alone can give a split that repeats. Past k = 4 the real campaigns hold up better, {late_real.min():.2f}-{late_real.max():.2f} against {late_benchmarks.min():.2f}-{late_benchmarks.max():.2f}.
+
+**k = 2 scores highest on both measures, and it's nearly one column.** Spending over {TV_RULE:.0%} on broadcast by June matches that split for {tv_match[2]:.0%} of campaigns, and matches Early TV against the rest below for {tv_match[CHOSEN_K]:.0%}. The {TV_RULE:.0%} is the best of five cutoffs tried. Three clusters are kept for description, because k = {CHOSEN_K} also pulls out an incumbent-heavy group, not because k = {CHOSEN_K} scores best.
 
 {profile_table}
 
 {cluster_table}
 
-Most of this is incumbency: the maintenance type is nearly all incumbents. Challengers already on TV by June win more often than other challengers, but they've also spent far more by then: a median of ${challenger_spent[order[0]] / 1e3:,.0f}K against ${challenger_spent[order[1]] / 1e3:,.0f}K and ${challenger_spent[order[2]] / 1e3:,.0f}K. As forecast features, with clusters fit only on earlier years, they make log loss with the miss removed {forecast_clusters.within.mean():+.5f} (better in {int((forecast_clusters.within < 0).sum())} of 5 years).
+**Incumbency explains one cluster, not all of them.** {names[maintenance]} is {incumbent_share[maintenance]:.0%} incumbents, but {names[order[0]]} and {names[broad]} are {incumbent_share[order[0]]:.0%} and {incumbent_share[broad]:.0%}. Seat type alone predicts a campaign's cluster {seat_fit['seat']:.0%} of the time, and {seat_fit['money']:.0%} with log spending added (five-fold), against {seat_fit['largest']:.0%} for always guessing the largest. Challengers already on TV by June win more often than other challengers, but they've also spent far more by then: a median of ${challenger_spent[order[0]] / 1e3:,.0f}K against ${challenger_spent[order[1]] / 1e3:,.0f}K and ${challenger_spent[order[2]] / 1e3:,.0f}K.
+
+**They don't help the forecast.** As forecast features, with clusters fit only on earlier years, they make log loss with the miss removed {forecast_clusters.within.mean():+.5f} (better in {int((forecast_clusters.within < 0).sum())} of 5 years). The two-cluster split makes it {forecast_two.within.mean():+.5f} (better in {int((forecast_two.within < 0).sum())} of 5).
 
 ## 4. Do candidates respond to TV prices?
 
@@ -490,10 +579,46 @@ Setting each race's error size by money is better in {int((error_size.change < 0
 | Idea | What it needs |
 |---|---|
 | Meta ad spending | An identity-verified Ad Library account and a developer token. Meta's public script repository (facebookresearch/Ad-Library-API-Script-Repository, checked) wraps the API and still needs the token. It reports ranges, by state |
-| FCC political files | The API responds (checked), but filings are mostly scanned PDFs |
 | TV spot data | Wesleyan Media Project's data, open to academics for a fee per dataset, or a commercial AdImpact license. Requested on 2026-11-03, not yet delivered |
 
-## 7. Limits
+## 7. What the same airtime costs
+
+Everything above counts a dollar as a dollar. Stations' political files, public through the FCC, show the rate each sponsor was charged, so they can test that. {fcc_status} Those files come from {fcc_stations[FCC_YEARS[0]]} and {fcc_stations[LIVE]} stations in {fcc_markets[FCC_YEARS[0]]} and {fcc_markets[LIVE]} markets. This isn't part of `run.py`.
+
+The comparison was fixed from a six-station pilot before scaling up: the same station, time slot, days, week and spot length (:30, or not stated), within 60 days of the election, when candidates are due a station's lowest rate (general knowledge of FCC rules, not checked here). Intervals resample stations. "Typical station" takes each station's own median first, so busy stations don't dominate. It was added after the first read showed they do. The split by station and the higher price in the allocation table were added after the final read.
+
+{price_view}
+
+- **Coordinated buys pay the candidate's price.** The median is {coord[FCC_YEARS[0]]['median']:.2f}x in {FCC_YEARS[0]} and {coord[LIVE]['median']:.2f}x in {LIVE}, though not every time: {coord[FCC_YEARS[0]]['above']:.0%} and {coord[LIVE]['above']:.0%} of comparisons run over 1.1x.
+- **A party's independent buys cost at least twice a candidate's price:** {party_ie['median']:.2f}x in {FCC_YEARS[0]}, and {party_ie['typical']:.2f}x at a typical station. {LIVE} has none to compare. Against coordinated buys in the same slot, a typical station charges {direct['typical']:.2f}x. The all-comparisons figure, {direct['median']:.2f}x, leans on one station: {busiest['station']} holds {busiest['n']} of the {direct['n']:.0f} comparisons, at {busiest['median']:.2f}x. Why isn't clear. Its independent folder costs {busiest['against_candidate']:.2f}x a candidate's where those two meet, so that folder may hold some coordinated buys. Without that station the figure is {busiest['without']['median']:.2f}x ({busiest['without']['low']:.2f}-{busiest['without']['high']:.2f}).
+- **Outside groups pay at least twice a candidate's price at a typical station in both years** ({outside[FCC_YEARS[0]]['typical']:.2f}x and {outside[LIVE]['typical']:.2f}x). These are the main House groups: House Majority PAC, Congressional Leadership Fund, American Action Network and United Democracy Project. The fall in the all-comparisons figure, {outside[FCC_YEARS[0]]['median']:.2f}x to {outside[LIVE]['median']:.2f}x, doesn't show a falling premium. Busy stations pull up {FCC_YEARS[0]}'s, and at the {shared[LIVE]['stations']} stations priced in both years, the figures are {shared[FCC_YEARS[0]]['median']:.2f}x ({shared[FCC_YEARS[0]]['low']:.2f}-{shared[FCC_YEARS[0]]['high']:.2f}) and {shared[LIVE]['median']:.2f}x ({shared[LIVE]['low']:.2f}-{shared[LIVE]['high']:.2f}), which overlap widely.
+
+Earlier in the cycle there's far less: {early_pairs:.0f} comparisons, because the sample takes files uploaded from 75 days before the election. Outside groups' gap is already there, at {early_outside[FCC_YEARS[0]]['median']:.2f}x and {early_outside[LIVE]['median']:.2f}x across {early_outside[FCC_YEARS[0]]['stations']:.0f} and {early_outside[LIVE]['stations']:.0f} stations, so it doesn't look like it only opens in the last 60 days. That's thin, with wide intervals.
+
+**Two checks.** The cheapest spots can be bumped for a higher bidder, so a price gap could partly be a difference in what's bought. Lines marked preemptible, at the {fcc['flag_stations'][FCC_YEARS[0]]} and {fcc['flag_stations'][LIVE]} stations that mark any, run {fcc['flag_rate'][FCC_YEARS[0]]['candidate']:.0%} and {fcc['flag_rate'][LIVE]['candidate']:.0%} of candidates' lines, {fcc['flag_rate'][FCC_YEARS[0]]['outside']:.0%} and {fcc['flag_rate'][LIVE]['outside']:.0%} of outside groups', and {fcc['flag_rate'][FCC_YEARS[0]]['party_independent']:.0%} of a party's independent buys in {FCC_YEARS[0]}. Outside groups' shares are close to candidates', and independent buys' is lower. Leaving them out gives {clean.loc[(FCC_YEARS[0], 'outside', 'candidate')]['median']:.2f}x and {clean.loc[(LIVE, 'outside', 'candidate')]['median']:.2f}x for outside groups, {clean.loc[(FCC_YEARS[0], 'coordinated', 'candidate')]['median']:.2f}x and {clean.loc[(LIVE, 'coordinated', 'candidate')]['median']:.2f}x for coordinated buys, and {clean.loc[(FCC_YEARS[0], 'party_independent', 'candidate')]['median']:.2f}x for independent ones. Most stations don't mark them, so this doesn't settle it.
+
+The other worry is that {coord[LIVE]['median']:.2f}x is a filing artifact, with one buy sitting in both a candidate's and a party's folder. {'No document repeats' if folders[FCC_YEARS[0]]['repeats'] + folders[LIVE]['repeats'] == 0 else str(folders[FCC_YEARS[0]]['repeats'] + folders[LIVE]['repeats']) + ' documents repeat'} across kinds of sponsor at a station. {folders[FCC_YEARS[0]]['names_party']['coordinated']:.0%} and {folders[LIVE]['names_party']['coordinated']:.0%} of documents in coordinated folders name DCCC or NRCC, against {folders[FCC_YEARS[0]]['names_party']['candidate']:.0%} and {folders[LIVE]['names_party']['candidate']:.0%} in candidates' folders, and leaving out those candidate documents leaves coordinated buys at {without[FCC_YEARS[0]]['coordinated']['median']:.2f}x and {without[LIVE]['coordinated']['median']:.2f}x.
+
+**The parties moved to the cheaper way of buying** once the limits on coordinated spending fell in June 2026. This counts every PDF in the listing, by folder name, for markets with a race the forecast put within 15 points. {LIVE}'s list covers more markets, so compare kinds rather than totals:
+
+{file_view}
+
+FEC agrees: both committees report $0 of independent spending for {LIVE} (main report, not recomputed here).
+
+**What it does to the allocation reading: little.** The spending curve is an assumption and doesn't say which kind of dollar it describes. If it describes an independent dollar, a {LIVE} coordinated dollar goes further on its media share. This takes the {premium:.2f}x at face value and treats all money filed as media as TV. Treating it all as TV leans high: "media" can include digital and production, and the gap is mostly measured within 60 days of the election. The price itself could be higher, so the last row uses {top_price:.2f}x, the top of the direct comparison's interval at a typical station:
+
+{airtime_view}
+
+So in airtime, {LIVE}'s party budgets are larger than their dollars suggest. By the same date in 2016-2024, independent money ran $26M-$66M for DCCC and $24M-$47M for NRCC (main report, not recomputed here). The gain from reallocating about doubles, because every dollar goes further, but it stays under a seat each, even at {top_price:.2f}x. And a gap that applies in every race doesn't say where money should go: the 80%+ multipliers move little. It would matter if the gap varied by market, and stations' figures do spread widely. That isn't tested here.
+
+**What this can't say.**
+- **Coverage.** {readable[FCC_YEARS[0]]:.0%} and {readable[LIVE]:.0%} of documents are readable as text, and {with_lines[FCC_YEARS[0]]:.0%} and {with_lines[LIVE]:.0%} give priced lines. The rest are scans and agencies' own forms, so stations using the common billing layouts count for more.
+- **The sample.** Big-four affiliates in those markets, files uploaded from 75 days before the election to 45 after, at most 6 per sponsor per station. It isn't a national price.
+- **Sponsors are stations' folder names**, typed by hand. Names that don't settle it count as unknown.
+- **A rate is what a spot cost,** not what it delivered, and these rates are gross of any agency commission.
+- **It isn't a forecast test,** so it isn't among the {len(LABELS)} features above.
+
+## 8. Limits
 
 - **Payment dates, not delivery.** A buy paid for in June can run in July, and a vendor's invoice can lag. FCC files or ad archives would show what ran and when.
 - **Vendors obscure sub-vendors.** A payment to a media firm says nothing about whether it became TV, digital or fees, and FEC doesn't require more.
