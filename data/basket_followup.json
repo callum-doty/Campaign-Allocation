@@ -1,0 +1,239 @@
+{
+  "entry_coefficients": {
+    "first_term": -0.098,
+    "incumbent": -0.011,
+    "opp_quality": 0.149,
+    "opp_money": 2.629,
+    "own_surplus": -0.586,
+    "own_polling": -0.067,
+    "redrawn": 0.02,
+    "burn": -0.584,
+    "repeat": -0.126,
+    "mu_own": -2.212
+  },
+  "money_forms": {
+    "as_run_d": {
+      "seats": 809,
+      "points_per_sd": -1.87163941120367,
+      "t": -5.399048516495839,
+      "p": 0.0,
+      "years_negative": 5,
+      "passes": true,
+      "top_tenth": -4.764515762005316,
+      "top_tenth_seats": 81,
+      "rest": -1.7655957600486363,
+      "entered": -5.142903440886399,
+      "entered_seats": 52,
+      "entries": 47
+    },
+    "symmetric_d": {
+      "seats": 805,
+      "points_per_sd": 0.3014560648712058,
+      "t": 1.2630324936816073,
+      "p": 0.2078,
+      "years_negative": 1,
+      "passes": false,
+      "top_tenth": -1.0236282274312625,
+      "top_tenth_seats": 81,
+      "rest": -2.6209896095337477,
+      "entered": -3.4032863087743506,
+      "entered_seats": 38,
+      "entries": 33
+    },
+    "as_run_r": {
+      "seats": 857,
+      "points_per_sd": 0.48276445608575486,
+      "t": 1.8247995156370793,
+      "p": 0.0706,
+      "years_negative": 2,
+      "passes": false,
+      "top_tenth": -1.615310078457623,
+      "top_tenth_seats": 86,
+      "rest": -2.076212608400714,
+      "entered": -8.52091339809199,
+      "entered_seats": 26,
+      "entries": 11
+    },
+    "symmetric_r": {
+      "seats": 863,
+      "points_per_sd": 0.7510654603944079,
+      "t": 2.707562698254558,
+      "p": 0.0054,
+      "years_negative": 0,
+      "passes": false,
+      "top_tenth": -2.1072298644247676,
+      "top_tenth_seats": 87,
+      "rest": -1.98087034174981,
+      "entered": -6.963382105020298,
+      "entered_seats": 31,
+      "entries": 15
+    }
+  },
+  "without_opponents_money": {
+    "seats": 809,
+    "points_per_sd": -0.5972207584281132,
+    "t": -2.5164514306264327,
+    "p": 0.0091,
+    "years_negative": 5,
+    "passes": true,
+    "top_tenth": -0.44886674126977105,
+    "top_tenth_seats": 81,
+    "rest": -2.2457709944986073,
+    "entered": -5.142903440886399,
+    "entered_seats": 52
+  },
+  "seat_groups": {
+    "committee_money": {
+      "seats": 52,
+      "forecast_margin": 11.369844578304237,
+      "forecast_win": 0.894915844868261,
+      "lost": 8,
+      "expected_losses": 5.464376066850428,
+      "miss": -5.142903440886399
+    },
+    "no_money_top_tenth": {
+      "seats": 81,
+      "forecast_margin": 24.961832695537268,
+      "forecast_win": 0.9618138941294384,
+      "lost": 1,
+      "expected_losses": 3.093074575515502,
+      "miss": -4.764515762005316
+    },
+    "no_money_rest": {
+      "seats": 728,
+      "forecast_margin": 38.04658629865811,
+      "forecast_win": 0.9937365363128688,
+      "lost": 0,
+      "expected_losses": 4.559801564231433,
+      "miss": -1.7655957600486363
+    }
+  },
+  "forward": {
+    "2020": {
+      "seats": 189,
+      "lost": 1,
+      "raw": [
+        0.03934447907935429,
+        0.04212629909662989
+      ],
+      "miss_removed": [
+        0.05067662061893655,
+        0.07160532151346775
+      ],
+      "margin_error": [
+        6.027812232290771,
+        6.0751374594353384
+      ]
+    },
+    "2022": {
+      "seats": 161,
+      "lost": 0,
+      "raw": [
+        0.015328158131910595,
+        0.023868810277054155
+      ],
+      "miss_removed": [
+        0.005912454880742197,
+        0.010515575687400766
+      ],
+      "margin_error": [
+        6.308248805183583,
+        5.998231500259589
+      ]
+    },
+    "2024": {
+      "seats": 174,
+      "lost": 0,
+      "raw": [
+        0.014635394962640873,
+        0.025291992490193524
+      ],
+      "miss_removed": [
+        0.012925242004561252,
+        0.02392042202425464
+      ],
+      "margin_error": [
+        5.803081915204716,
+        5.475360439609622
+      ]
+    }
+  },
+  "near_line": {
+    "by_who_spent": {
+      "defender": {
+        "seats": 17,
+        "forecast_win": 0.8807043476001031,
+        "lost": 1,
+        "expected_losses": 2.0280260907982472,
+        "miss": -2.7236886394953315
+      },
+      "attacker": {
+        "seats": 14,
+        "forecast_win": 0.8702950286654177,
+        "lost": 1,
+        "expected_losses": 1.8158695986841542,
+        "miss": -6.563568520860604
+      },
+      "both": {
+        "seats": 30,
+        "forecast_win": 0.8614800076073925,
+        "lost": 8,
+        "expected_losses": 4.155599771778228,
+        "miss": -4.826335618532451
+      },
+      "neither": {
+        "seats": 134,
+        "forecast_win": 0.8971075442257814,
+        "lost": 3,
+        "expected_losses": 13.787589073745295,
+        "miss": -1.0298132561670708
+      }
+    },
+    "by_side": {
+      "d_money": {
+        "seats": 39,
+        "forecast_win": 0.8696713070128985,
+        "lost": 5,
+        "expected_losses": 5.0828190264969555,
+        "miss": -3.3150596601171176
+      },
+      "d_none": {
+        "seats": 47,
+        "forecast_win": 0.8933884669618407,
+        "lost": 0,
+        "expected_losses": 5.01074205279347,
+        "miss": -0.7403692576453696
+      },
+      "r_money": {
+        "seats": 22,
+        "forecast_win": 0.8674237984198331,
+        "lost": 5,
+        "expected_losses": 2.916676434763672,
+        "miss": -6.986154907948866
+      },
+      "r_none": {
+        "seats": 87,
+        "forecast_win": 0.8991167009085996,
+        "lost": 3,
+        "expected_losses": 8.776847020951823,
+        "miss": -1.1861795542190237
+      }
+    },
+    "money": {
+      "seats": 61,
+      "forecast_win": 0.8688607301432684,
+      "lost": 10,
+      "expected_losses": 7.999495461260628,
+      "miss": -4.639061224908896
+    },
+    "none": {
+      "seats": 134,
+      "forecast_win": 0.8971075442257814,
+      "lost": 3,
+      "expected_losses": 13.787589073745295,
+      "miss": -1.0298132561670708
+    },
+    "win_gap": -0.14154636652801567,
+    "shuffles_as_large": 0.00065
+  }
+}

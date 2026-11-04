@@ -24,6 +24,7 @@ from campaign import load_results as lres  # noqa: E402
 from campaign.allocate import allocate  # noqa: E402
 from campaign.ballot_timing import election_day, persuasion_weight, timed_gain  # noqa: E402
 from campaign import basket_search as bs  # noqa: E402
+from campaign import basket_followup as bf  # noqa: E402
 from campaign.brand_test import add_money_bands, national_passthrough, scaled  # noqa: E402
 from campaign.break_even import break_even_scale  # noqa: E402
 from campaign.classify_purpose import by_rules, classify_text, classify_vendors, vendor_categories, vendor_key  # noqa: E402
@@ -1188,3 +1189,28 @@ def test_run_refuses_to_write_over_results(tmp_path, monkeypatch):
     monkeypatch.setattr(bs, "RESULTS", done)
     with pytest.raises(SystemExit):
         bs.run()
+
+
+def test_who_spent_reads_from_the_favored_side():
+    defend, attack = np.array([True, True, False, False]), np.array([True, False, True, False])
+    assert bf.who_spent(defend, attack).tolist() == ["both", "defender", "attacker", "neither"]
+
+
+def test_nearline_record_keeps_seats_near_the_line_on_both_sides():
+    frozen = pd.DataFrame({"district_id": ["A", "B", "C", "D", "E"], "p_baseline": [0.90, 0.10, 0.50, 0.99, 0.85], "mu_baseline": [10.0, -10.0, 0.0, 20.0, 8.0],
+                           "dccc_coordinated": [5.0, 0.0, 1.0, 1.0, 1.0], "nrcc_coordinated": [0.0, 7.0, 1.0, 1.0, np.nan]})
+    record = bf.nearline_record(frozen, pd.Series([True, True, True, True, False])).set_index("district_id")
+    assert record.index.tolist() == ["A", "B"]
+    assert record.favored.tolist() == ["D", "R"]
+    assert record.mu_favored.tolist() == [10.0, 10.0]
+    assert record.p_favored.tolist() == pytest.approx([0.90, 0.90])
+    assert record.defender_dollars.tolist() == [5.0, 7.0] and record.who_spent.tolist() == ["defender", "defender"]
+
+
+def test_symmetric_seats_restores_the_forecast_terms(monkeypatch):
+    seen = []
+    monkeypatch.setattr(bs, "safe_seats", lambda races, measures, side: seen.append(list(bs.FEATURES)))
+    before = list(bs.FEATURES)
+    bf.symmetric_seats({}, {}, "d")
+    assert "money_odds" in seen[0] and "floor_share" not in seen[0]
+    assert list(bs.FEATURES) == before

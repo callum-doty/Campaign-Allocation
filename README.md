@@ -97,6 +97,7 @@ campaign/
   spending_signal.py        whether those features beat the June 30 surplus
   mine_spending.py          campaign clusters, association rules, TV-market test
   basket_search.py          a combinatoric search and committee test, fixed first in BASKET_DESIGN.md (not part of run.py)
+  basket_followup.py        checks added after that run, and the 2026 near-line record (not part of run.py)
   competitive_response.py   do the committees react to each other, week by week?
   market_spillover.py       do committees spend more where close races share a TV market?
   redrawn_retention.py      how much of a new district an incumbent already represented

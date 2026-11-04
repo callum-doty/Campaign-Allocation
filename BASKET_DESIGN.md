@@ -171,3 +171,78 @@ python -m campaign.basket_search
 ```
 
 Both need the data `spending_report` uses, including the donor files.
+
+---
+
+# Added after the run
+
+Everything above this line is as committed in `33049ef`, pushed before the real run on November 4, 2026. What follows came later. Results are in [`data/basket_results.json`](data/basket_results.json).
+
+## Verdicts under the rules above
+
+| Test | Result | Verdict |
+|---|---|---|
+| Trees | Log loss +0.00008 with the miss removed, better in 2 of 5 years, 48% of shuffles as good. Raw -0.00036, 6.5% of shuffles as good | Doesn't clear |
+| Baskets | 3,961 scored against a bar of 4.04. Top are high mail share + incumbent, -2.6 points (t -3.90), and high mail share + challenger, +2.8 (t +3.83). 10% of flips reach the top one | None pass, none named |
+| Committee, step 1 | Area under the ROC curve 0.945 for how safe the seat is, 0.927 adding first term, 0.956 with all flags | Flags add little to entry |
+| Committee, step 2 | -1.87 points per SD of the score, t -5.40, none of 10,000 flips as large, negative in 5 of 5 years | **Passes** |
+
+Robustness, which isn't part of passing: no outside money either -1.91 (t -5.20), without 2020 -1.99 (t -4.98), Sept 1 forecast -1.87 (t -5.55), surplus forecast -1.64 (t -5.00). The NRCC mirror has the wrong sign, +0.48 (t +1.82).
+
+In 2026, how safe the seat is predicts entry better alone (0.982, from [`data/basket_entry_2026.csv`](data/basket_entry_2026.csv)) than the full model does (0.947).
+
+## Why the pass isn't what it looks like
+
+These checks weren't in the design. They're in [`campaign/basket_followup.py`](campaign/basket_followup.py), with numbers in [`data/basket_followup.json`](data/basket_followup.json), and don't change the verdicts.
+
+- **It's mostly the forecast's money term.** With the symmetric money term in place of `floor_share`, the result goes from -1.87 (t -5.40) to +0.30 (t +1.26), negative in 1 of 5 years. The forecast under-counts a well-funded opponent in a safe seat. Opponent's money is the entry model's largest term (+2.63 standardized, against -2.21 for how safe the seat is). Without that flag the result is -0.60 per SD (t -2.52).
+- **It's margins, not seats.** Most of these seats are far from flipping:
+
+| Democratic seats at 80%+, 2016-2024 | Seats | Forecast margin | Forecast win | Lost (expected) | Miss |
+|---|---|---|---|---|---|
+| Committee money | 52 | +11.4 | 89.5% | 8 (5.5) | -5.14 |
+| No money, top tenth of scores | 81 | +25.0 | 96.2% | 1 (3.1) | -4.76 |
+| No money, the rest | 728 | +38.0 | 99.4% | 0 (4.6) | -1.77 |
+
+- **It wouldn't help the forecast.** Applying the score and slope from earlier years to each year's seats with no committee money makes log loss with the miss removed worse in all three years tried: 0.051 to 0.072 in 2020, 0.006 to 0.011 in 2022, 0.013 to 0.024 in 2024. Margin error goes 6.03 to 6.08, 6.31 to 6.00, and 5.80 to 5.48. Few entries come before 2022, so this is rough.
+
+**The reading in "How the outcomes read" was too strong.** It says a pass means part of the safe-seat spending is the forecast's error. The test measured margin misses, not losses, and it mostly found a known misfit in the money term. The score shouldn't be adopted.
+
+## A lead, seen only after the fact
+
+In seats the forecast gave one side 80-95%, 2016-2024, seats no committee entered almost never flipped:
+
+| Who spent | Seats | Forecast win | Lost (expected) | Miss |
+|---|---|---|---|---|
+| Defender's committee only | 17 | 88.1% | 1 (2.0) | -2.72 |
+| Attacker's committee only | 14 | 87.0% | 1 (1.8) | -6.56 |
+| Both committees | 30 | 86.1% | 8 (4.2) | -4.83 |
+| Neither | 134 | 89.7% | 3 (13.8) | -1.03 |
+
+By favored side, seats with money lost 5 of 39 (Democratic, 5.1 expected) and 5 of 22 (Republican, 2.9). Seats without lost 0 of 47 (5.0) and 3 of 87 (8.8). Under 0.1% of shuffles give as large a gap in win rates.
+
+- **What it might mean:** committees see something the forecast doesn't, which may be public, like ratings and district polls. Defender-only seats running behind seats nobody spent on suggests that picking seats in trouble outweighs any money effect there.
+- **What it can't rule out:** attacks cause some of the losses, and the forecast's rate averages attacked and unattacked seats. Most losses fall where both committees spent, where dollars roughly offset, which makes attacks a weaker explanation there but doesn't exclude them.
+- **How far to trust it:** 13 losses, mostly in 2018 and 2020, found by looking at these same years.
+
+## Predictions for 2026
+
+Written November 4, 2026, after polls closed and before any 2026 result is in the repo. Claude hadn't looked at results when writing this; the user may have seen headlines. The seats came mechanically from the frozen forecast and committee filings, with no choice made seat by seat. So this is firmer than a guess and weaker than a pre-election freeze.
+
+[`data/basket_nearline_2026.csv`](data/basket_nearline_2026.csv) is the record: 52 seats the frozen baseline in `data/forecast_freeze_2026_v2.csv` gave one side 80-95%, with both nominees, and who spent through Oct 14. `basket_followup.py` refuses to write over it.
+
+**How they'll be scored.** A seat is lost if the favored side loses. The year's miss is the mean of the actual margin minus `mu_baseline` over 2026's contested races. With the miss removed, a seat's chance of losing is `1 - Phi((mu_favored + s * miss) / sigma_within)`, where `s` is +1 for Democratic-favored seats and -1 for Republican-favored ones, and `sigma_within` is 7.05, from `sigma` 7.586 and `sigma_national` 2.805 in the frozen file's baseline. Removing the miss is primary, since a national polling miss moves all these seats together. Raw counts get reported too.
+
+| Prediction | Seats | Expected losses, raw | Holds if |
+|---|---|---|---|
+| 1. Skipped Republican-favored seats lose less than forecast | 37 | 3.95 | Fewer lost than expected |
+| 2. Seats where both committees spent lose more than forecast | 11 (9 Democratic-favored, 2 Republican-favored) | 1.77 | More lost than expected |
+| 3. Average miss toward the favored side is lowest where nobody spent | 52 | n/a | Reported, no pass or fail |
+
+The 37 seats are AR-02, AZ-05, CA-05, FL-04, FL-05, FL-08, FL-12, FL-21, FL-27, GA-01, GA-12, IN-05, KS-02, MD-01, MI-01, MN-08, NC-05, NC-06, NC-07, NC-10, NC-13, NJ-02, NY-02, OK-01, OK-05, TN-05, TX-02, TX-10, TX-21, TX-22, TX-24, TX-32, TX-38, WA-04, WI-06, WI-07 and WI-08.
+
+**Limits.**
+- One year is a weak test, especially with 1.77 expected losses in prediction 2. A miss would weaken the lead, and a hit wouldn't establish it.
+- The Democratic side can't test skipped seats: 9 of its 10 were entered, and NJ-09 is the only one skipped.
+- Money is coordinated spending through Oct 14, so a committee entering later counts as having skipped.
+- The history counted independent spending over whole cycles, so 2026's entries are a different kind of money.
