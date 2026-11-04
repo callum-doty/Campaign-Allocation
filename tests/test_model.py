@@ -38,9 +38,13 @@ from campaign.implied_belief import implied_belief  # noqa: E402
 from campaign import lookup_quality as lq  # noqa: E402
 from campaign.load_oppexp import swap_memos  # noqa: E402
 from campaign.market_spillover import spillover_fit  # noqa: E402
-from campaign.mine_spending import clr, rules, shares  # noqa: E402
+from campaign.mine_spending import agreement, benchmark_k, clr, cluster_from_seat, one_cloud, rules, share_clear, shares, shuffled_columns  # noqa: E402
 from campaign.national_test import CYCLES, economics_only, national_test  # noqa: E402
 from campaign.predict_margin import predict_margin  # noqa: E402
+from campaign.fcc_prices import airtime_multiple, busiest_station, folder_check, party_files, price_ratio, reading_at, slot_cells  # noqa: E402
+from campaign import fetch_fcc as ff  # noqa: E402
+from campaign.fetch_fcc import market_key, station_markets  # noqa: E402
+from campaign.load_fcc import days_mask, parse_lines, sponsor_kind  # noqa: E402
 from campaign.load_donors import committee_donors, donor_key, gifts_through_june, parse_line, race_measures  # noqa: E402
 from campaign.google_ads import add_google  # noqa: E402
 from campaign import redrawn_retention as rr  # noqa: E402
@@ -805,6 +809,172 @@ def test_money_bands_mark_low_money_and_separate_hindsight_from_what_september_s
     assert out.low_money.tolist() == [1.0, 0.0] and out.low_all.tolist() == [0.0, 1.0]
     assert out.pvi_low.tolist() == [10.0, 0.0] and out.pvi_low_all.tolist() == [0.0, -10.0]
     assert out.pvi_curve.tolist() == pytest.approx([10.0, -10.0])
+
+
+def test_fcc_lines_read_both_layouts_and_keep_the_slot_across_week_rows():
+    invoice = """Line   Start Date   End Date   Description   Start/End Time   MTWTFSS
+   51 10/22/24   10/28/24   CBS THIS MORNING   7:00 AM-9:00 AM   78777--
+       Weeks:       Start Date End Date     MTWTFSS         Spots/Week        Rate
+                    10/22/24    10/28/24    78777--                 36      $80.00
+ Spots: #   Ch   Day Air Date   Air Time Description    Start/End Time
+       24   WTOL M 10/28/24     7:24 AM CBS THIS MORNING   7:00 AM-9:00 AM
+                    10/29/24    11/04/24    78777--                 30      $95.00
+"""
+    order = """N 1   WILX   09/17/24 09/23/24 News 10 Today @ 5a CM     5:00 AM-5:30 AM MTWTF--     :30       3      $250.00 P-03
+    CS 3Q EST - LANSING - ACTUAL Sep/2023 Mo-Fr 5:00a-5:30a TIME PERIOD ON WILX
+        Start Date End Date     Weekdays      Spots/Week      Rate    Rating
+  Week: 09/17/24     09/23/24   MTWTF--                3 $250.00        0.00
+"""
+    first = parse_lines(invoice)
+    assert [(r["week"], r["spots"], r["rate"], r["slot"]) for r in first] == [("10/22/24", 36, 80.0, "7:00AM-9:00AM"), ("10/29/24", 30, 95.0, "7:00AM-9:00AM")]
+    second = parse_lines(order)
+    assert [(r["spots"], r["rate"], r["slot"], r["seconds"]) for r in second] == [(3, 250.0, "5:00AM-5:30AM", 30)]
+    assert days_mask("MTWTF--") == days_mask("22222--") == "xxxxx--"
+    aired = """Line Channel Description    Time    Day  Date   Length Air Time   Ad-ID   Rate  Reconciliation  Ref #
+   1   WVIT   5-530A CT NEWS TODAY   5:00 AM-5:30 AM
+         All spots on this line are Immediately Preemptible class of time
+   08/26/24 to 09/01/24   4x   -1111--
+   WVIT   Tu   08/27/24   :30   5:09 AM   SGLCT819H   $250.00   1
+   WVIT   W    08/28/24   :30   5:25 AM   SGLCT819H   $250.00   2
+   2   WVIT   CT NEWS AT 6   6:00 PM-6:30 PM
+   08/26/24 to 09/01/24   1x   1------
+   WVIT   M    08/26/24   :15   6:09 PM   SGLCT819H   $900.00   1
+"""
+    third = parse_lines(aired)
+    assert [(r["week"], r["days"], r["spots"], r["rate"], r["slot"], r["seconds"], r["preemptible"]) for r in third] == [
+        ("08/26/24", "-1111--", 1, 250.0, "5:00AM-5:30AM", 30, True), ("08/26/24", "-1111--", 1, 250.0, "5:00AM-5:30AM", 30, True), ("08/26/24", "1------", 1, 900.0, "6:00PM-6:30PM", 15, False)]
+
+
+def test_sponsor_kinds_come_from_how_stations_name_folders():
+    assert sponsor_kind("house", "Bresnahan-NRCC") == "coordinated"
+    assert sponsor_kind("house", "Hertel for Michigan - DCCC") == "coordinated"
+    assert sponsor_kind("house", "Cartwright-D-US House") == "candidate"
+    assert sponsor_kind("house", "Valadao for Congress") == "candidate"
+    assert sponsor_kind("house", "House Majority PAC") == "outside"
+    assert sponsor_kind("non_candidate", "NRCC-IE") == "party_independent"
+    assert sponsor_kind("non_candidate", "Congressional Leadership Fund") == "outside"
+    assert sponsor_kind("house", "Zzyzx") == "unknown"
+    assert sponsor_kind("house", "Tranel - Democrat - Congress") == "candidate"
+    assert sponsor_kind("house", "Committee to Elect Jared Golden") == "candidate"
+    assert sponsor_kind("house", "Juan Ciscomani") == "candidate"
+    assert sponsor_kind("house", "Conley House Victory Fund") == "unknown"
+    assert sponsor_kind("house", "OHIO") == "unknown"
+    assert sponsor_kind("house", "NRCC") == "unknown"
+    assert sponsor_kind("house", "NRCC IE") == "party_independent"
+    assert sponsor_kind("non_candidate", "NRCC Robert Bresnahan") == "unknown"
+    assert sponsor_kind("non_candidate", "Democratic Congressional Campaign Committee") == "party_independent"
+
+
+def test_prices_compare_only_the_same_slot_days_week_and_length():
+    rows = [("A", "6PM", "MTWTF--", 30, "candidate", 100.0), ("A", "6PM", "MTWTF--", 30, "party_independent", 400.0), ("A", "6PM", "--S----", 30, "party_independent", 900.0),
+            ("A", "7PM", "MTWTF--", 60, "candidate", 50.0), ("A", "7PM", "MTWTF--", 60, "party_independent", 900.0), ("B", "6PM", "MTWTF--", None, "candidate", 100.0), ("B", "6PM", "MTWTF--", None, "party_independent", 200.0)]
+    lines = pd.DataFrame(rows, columns=["station", "slot", "days", "seconds", "kind", "rate"]).assign(week=pd.Timestamp("2024-10-07"))
+    found = price_ratio(slot_cells(lines), "party_independent", "candidate", draws=50)
+    assert found["n"] == 2 and found["stations"] == 2 and found["median"] == pytest.approx(3.0)
+    assert price_ratio(slot_cells(lines), "coordinated", "candidate", draws=5)["n"] == 0
+
+
+def test_typical_price_counts_each_station_once_however_busy():
+    rows = [("BUSY", f"{h}PM", "MTWTF--", 30, kind, rate) for h in range(1, 10) for kind, rate in (("candidate", 100.0), ("outside", 500.0))]
+    rows += [(s, "6PM", "MTWTF--", 30, kind, rate) for s in ("A", "B") for kind, rate in (("candidate", 100.0), ("outside", 200.0))]
+    lines = pd.DataFrame(rows, columns=["station", "slot", "days", "seconds", "kind", "rate"]).assign(week=pd.Timestamp("2024-10-07"))
+    found = price_ratio(slot_cells(lines), "outside", "candidate", draws=50)
+    assert found["median"] == pytest.approx(5.0) and found["typical"] == pytest.approx(2.0)
+
+
+def test_busiest_station_is_named_and_set_aside_from_the_figure_without_it():
+    rows = [("BUSY", f"{h}PM", "MTWTF--", 30, kind, rate) for h in range(1, 10) for kind, rate in (("party_independent", 100.0), ("coordinated", 100.0))]
+    rows += [("BUSY", "9AM", "MTWTF--", 30, kind, rate) for kind, rate in (("party_independent", 300.0), ("candidate", 100.0))]
+    rows += [(s, "6PM", "MTWTF--", 30, kind, rate) for s in ("A", "B") for kind, rate in (("party_independent", 300.0), ("coordinated", 100.0))]
+    lines = pd.DataFrame(rows, columns=["station", "slot", "days", "seconds", "kind", "rate"]).assign(week=pd.Timestamp("2024-10-07"))
+    found = busiest_station(slot_cells(lines), "party_independent", "coordinated")
+    assert (found["station"], found["n"]) == ("BUSY", 9) and found["median"] == pytest.approx(1.0)
+    assert found["against_candidate"] == pytest.approx(3.0) and found["without"]["median"] == pytest.approx(3.0) and found["without"]["n"] == 2
+    assert busiest_station(slot_cells(lines), "party_independent", "outside") is None
+
+
+def test_cluster_benchmarks_keep_only_what_each_is_meant_to():
+    base = np.random.default_rng(0).normal(size=500)
+    x = np.column_stack([base, base + np.random.default_rng(1).normal(scale=0.1, size=500)])
+    mixed = shuffled_columns(x, np.random.default_rng(2))
+    assert np.array_equal(np.sort(mixed, axis=0), np.sort(x, axis=0)) and abs(np.corrcoef(mixed.T)[0, 1]) < 0.2
+    cloud = one_cloud(x, np.random.default_rng(3))
+    assert cloud.shape == x.shape and np.corrcoef(cloud.T)[0, 1] > 0.9
+    scores = benchmark_k(x, shuffled_columns, ks=[2], draws=2)
+    assert list(scores.index) == [2] and set(scores.columns) == {"silhouette", "stability"}
+
+
+def test_agreement_ignores_which_side_is_which():
+    assert agreement([True, True, False, False], [False, False, True, True]) == 1.0
+    assert agreement([True, True, False, False], [True, False, False, False]) == 0.75
+
+
+def test_cluster_from_seat_finds_a_cluster_seat_type_settles():
+    frame = pd.DataFrame({"ici": ["I", "C"] * 30, "cluster": [0, 1] * 30, "total": 1e6 * np.arange(1.0, 61.0)})
+    found = cluster_from_seat(frame)
+    assert found["seat"] == 1.0 and found["largest"] == 0.5
+
+
+def test_share_clear_counts_campaigns_above_the_floor():
+    x = np.array([[0.0], [0.01], [10.0], [10.01], [5.0]])
+    assert share_clear(x, np.array([0, 0, 1, 1, 1])) == 0.8
+
+
+def test_party_files_keep_a_party_with_a_candidate_apart_from_other_unknowns():
+    rows = [("house", "DCCC Pat Smith", "1"), ("non_candidate", "DCCC", "2"), ("non_candidate", "NRCC Pat Smith", "3"), ("house", "Ohio", "4"), ("house", "Pat Smith", "4")]
+    manifest = pd.DataFrame(rows, columns=["section", "sponsor", "file_id"]).assign(extension="PDF", entity_id="e")
+    files = party_files(manifest).files
+    assert files.to_dict() == {"coordinated": 1, "party_independent": 1, "party_unclear": 1, "unknown": 1}
+
+
+def test_folder_check_finds_repeats_and_drops_candidate_documents_naming_a_party(tmp_path, monkeypatch):
+    monkeypatch.setattr(ff, "RAW", tmp_path)
+    sample = pd.DataFrame({"year": "2024", "station": "WAAA", "file_manager_id": list("abcd"), "extension": "pdf", "file_id": list("abcd"), "kind": ["candidate", "candidate", "outside", "coordinated"]})
+    for row, body in zip(sample.itertuples(), (b"own buy", b"paid for with NRCC", b"own buy", b"NRCC")):
+        path = ff.file_path(row)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+        path.with_suffix(".pdf.txt").write_bytes(body)
+    lines = pd.DataFrame({"station": "WAAA", "slot": "6PM", "days": "MTWTF--", "seconds": 30, "week": pd.Timestamp("2024-10-07"), "file_id": list("abcd"),
+                          "kind": ["candidate", "candidate", "outside", "coordinated"], "rate": [100.0, 300.0, 400.0, 100.0]})
+    found = folder_check(sample, lines, 2024)
+    assert found["repeats"] == 2
+    assert found["names_party"]["candidate"] == 0.5 and found["names_party"]["outside"] == 0.0
+    assert found["without"]["outside"]["median"] == pytest.approx(4.0)
+
+
+def test_airtime_multiple_stretches_only_the_media_share_and_the_curve_with_it():
+    assert airtime_multiple(0.8, 2.0) == pytest.approx(1.8) and airtime_multiple(0.0, 2.0) == 1.0
+    mu, spent = np.array([1.0, 3.0, 12.0, -5.0]), np.array([2e6, 2e6, 4e6, 2e6])
+    same = reading_at(mu, 7.0, spent, 1.0, 0.5)
+    assert same["gain"] == pytest.approx(reallocation_gain(mu, 7.0, spent, 5e6)[0])
+    assert reading_at(mu, 7.0, spent, 2.0, 0.5)["gain"] > same["gain"]
+
+
+def test_fcc_download_stops_at_a_refusal_and_keeps_what_it_has(tmp_path, monkeypatch):
+    monkeypatch.setattr(ff, "RAW", tmp_path)
+    calls = []
+
+    class Answer:
+        status_code, content = 403, b"no"
+
+    def refused(url, **kwargs):
+        calls.append(url)
+        return Answer()
+    monkeypatch.setattr(ff.requests, "get", refused)
+    monkeypatch.setattr(ff.time, "sleep", lambda s: None)
+    rows = pd.DataFrame({"year": "2024", "station": "WAAA", "folder_id": "f", "file_manager_id": [f"m{i}" for i in range(5)], "extension": "pdf"})
+    assert ff.download(rows, workers=1)[2] is True
+    assert len(calls) == 1
+    assert not list(tmp_path.rglob("*.pdf"))
+
+
+def test_fcc_markets_match_despite_spelling_and_shared_first_cities():
+    assert market_key("WILKES BARRE-SCRANTON-HZTN")[:2] == market_key("Wilkes Barre-Scranton, PA")[:2]
+    assert market_key("Sioux Falls(Mitchell)") == market_key("Sioux Falls (Mitchell), SD")
+    stations = pd.DataFrame({"id": ["1", "2", "3", "4"], "dma": ["PORTLAND OR", "PORTLAND-AUBURN", "COLUMBIA SC", "WILKES BARRE-SCRANTON-HZTN"], "state": ["OR", "ME", "SC", "PA"]})
+    chosen, missed = station_markets(stations, ["Portland, OR", "Wilkes Barre-Scranton, PA", "Nowhere, ZZ"])
+    assert sorted(chosen.id) == ["1", "4"] and missed == ["Nowhere, ZZ"]
 
 
 def test_google_matches_committees_by_fec_id_and_leaves_earlier_years_at_even():

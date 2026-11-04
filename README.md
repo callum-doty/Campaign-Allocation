@@ -102,6 +102,10 @@ campaign/
   load_donors.py            who gave to each nominee by June 30, from FEC's individual files
   google_ads.py             early Google ad spending by nominees
   brand_test.py             whether the generic ballot acts like a brand survey: pass-through, and lean by money
+  fetch_fcc.py              stations' FCC political files: stations, listings and slow downloads
+  fcc_markets.py            which TV markets to read: those with a race the forecast put within 15 points
+  load_fcc.py               spot lines and rates from those files, and who the sponsor was
+  fcc_prices.py             what the same airtime costs each kind of sponsor
   plots/                    one chart per file
 data/generic_ballot.csv     final polling averages, 2002-2026, with sources
 data/generic_ballot_dated.csv  polling averages on five dates each fall, 2002-2024, with sources
@@ -133,4 +137,4 @@ tests/test_model.py
 - **The effect of party money is assumed, not measured.** Public data can't separate it from the reasons money goes where it goes. Treat the allocation results as "under this assumption", and replace it with measured effects (for example randomized holdouts on mail or ad programs) when you have them. The break-even effect in the report is the number to compare a measured effect against. Both it and the implied-belief ratios still assume the same curve in every race.
 - **How fast persuasion fades is assumed**, from TV-ad experiments (half-life 4 days, with 2 and 8 shown), and early ballots are spread evenly over the last three weeks. The re-timing gain ignores the higher price of late airtime and any lasting effect of money, so it is an upper bound under that assumption.
 - **The main forecast uses the final pre-election generic ballot.** The report adds the forecast as it stood on five dates from Sept 1 to Oct 25 (that day's polls plus the usual drift to Election Day, and the outside money out by then) and redoes the safe-seat readings with it, every dollar at Sept 1 and each dollar at the date it was spent. Candidates' own money still counts only through June 30, since later FEC reports aren't downloaded.
-- **2026's allocation reading is partial.** After *NRSC v. FEC* (June 2026), DCCC and NRCC spend through coordinated expenditures, read here from each filing through Oct 14. Their purpose text separates only media from mail, their dates are when the committee paid, and section 5's fuller analysis still covers 2016-2024.
+- **2026's allocation reading is partial.** After *NRSC v. FEC* (June 2026), DCCC and NRCC spend through coordinated expenditures, read here from each filing through Oct 14. Their purpose text separates only media from mail, their dates are when the committee paid, and section 5's fuller analysis still covers 2016-2024. Coordinated buys also pay less than half what a party's independent buys did for the same TV slot, which [SPENDING.md](SPENDING.md) section 7 reads from stations' FCC files. The model counts both kinds of dollar the same.

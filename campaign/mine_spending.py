@@ -20,7 +20,9 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.metrics import adjusted_rand_score, silhouette_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import adjusted_rand_score, silhouette_samples, silhouette_score
+from sklearn.model_selection import cross_val_score
 
 GROUPS = {"Fundraising": "Fundraising", "Processing fees": "Fundraising", "Broadcast": "Broadcast", "Production": "Production",
           "Digital": "Digital", "Mail/print": "Mail/print", "Field/phones": "Field/phones", "Polling/research": "Polling/research",
@@ -31,6 +33,8 @@ MIN_BUDGET = 100_000
 ITEM_SHARE = 0.10
 PHASE_BUDGET = 25_000
 PHASES = ("Pre", "Q1", "Q2", "Q3", "Q4")
+NO_STRUCTURE = 0.25
+TV_RULE = 0.05
 
 
 def shares(rows):
@@ -60,10 +64,48 @@ def stability(x, k, draws=20, seed=0):
     return float(np.mean(scores))
 
 
-def choose_k(x, ks=range(3, 9)):
+def choose_k(x, ks=range(2, 9)):
     """k -> silhouette and stability."""
     return pd.DataFrame({k: {"silhouette": silhouette_score(x, kmeans(x, k).labels_, sample_size=min(3000, len(x)), random_state=0),
                              "stability": stability(x, k)} for k in ks}).T
+
+
+def shuffled_columns(x, rng):
+    """Each column shuffled on its own: the same spread per column and no relation between columns."""
+    return np.column_stack([rng.permutation(x[:, j]) for j in range(x.shape[1])])
+
+
+def one_cloud(x, rng):
+    """A single Gaussian cloud with `x`'s means and covariances: columns relate as they do in `x`, with no lumps."""
+    return rng.multivariate_normal(x.mean(axis=0), np.cov(x.T), len(x))
+
+
+BENCHMARKS = {"Each column shuffled": shuffled_columns, "One Gaussian cloud": one_cloud}
+
+
+def benchmark_k(x, make, ks=range(2, 9), draws=3, seed=0):
+    """`choose_k` averaged over `draws` datasets from `make`: what the scores look like when `x` has no kinds of campaign in it."""
+    rng = np.random.default_rng(seed)
+    return sum(choose_k(make(x, rng), ks) for _ in range(draws)) / draws
+
+
+def share_clear(x, labels, floor=NO_STRUCTURE):
+    """Share of campaigns whose own silhouette is above `floor`."""
+    return float((silhouette_samples(x, labels) > floor).mean())
+
+
+def agreement(split, rule):
+    """Share of campaigns a True/False `split` and `rule` put on the same side, whichever side is which."""
+    same = float((np.asarray(split, bool) == np.asarray(rule, bool)).mean())
+    return max(same, 1 - same)
+
+
+def cluster_from_seat(clustered):
+    """How well seat type predicts each campaign's cluster, five-fold: {"seat": from seat type, "money": with log spending too, "largest": always guessing the largest cluster}."""
+    known = clustered.dropna(subset=["ici"])
+    seat = pd.get_dummies(known.ici).astype(float).to_numpy()
+    score = lambda X: float(cross_val_score(LogisticRegression(max_iter=2000), X, known.cluster, cv=5).mean())
+    return {"seat": score(seat), "money": score(np.column_stack([seat, np.log(known.total)])), "largest": float(known.cluster.value_counts(normalize=True).max())}
 
 
 def tv_substitution(fall):
