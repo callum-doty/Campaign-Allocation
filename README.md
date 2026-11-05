@@ -5,7 +5,7 @@ Where should a party committee spend its money across House races? This repo ans
 1. **Forecast each race** from public data: partisan lean on the district's actual lines, incumbency (with first-term members flagged), whether a challenger was known before the campaign (a Wikipedia article by Jan 1 of the election year), how the seat's party ran last time, how much each side's candidate had raised from others by June 30 and outside groups had spent by the end of August (what a September decision can see), and the national environment.
 2. **Assume what party money does** (an explicit, adjustable curve with diminishing returns), then spend a budget where it buys the most expected seats and compare with what DCCC actually did.
 
-**[Read the report](REPORT.md)** for the data, features, math, results and charts.
+**[Read the report](REPORT.md)** for the data, features, math, results and charts. **[Everything tested](TESTED.md)** lists every idea tried, kept or not, with where each is written up.
 
 ## Headline results
 
