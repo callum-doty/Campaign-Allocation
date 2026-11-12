@@ -1,6 +1,6 @@
 # Everything tested
 
-Every idea tested in this repo, whether it was kept or not: the data it used, what it found, and where it's written up. It covers work from October 26 to November 4, 2026, and not the earlier version of this project.
+Every idea tested in this repo, whether it was kept or not: the data it used, what it found, and where it's written up. It covers work from October 26 to November 10, 2026, and not the earlier version of this project.
 
 With five backtest years, enough tries will turn up something that looks real by luck. Listing every try, failures included, is how a reader can judge the few that passed.
 
@@ -8,6 +8,7 @@ With five backtest years, enough tries will turn up something that looks real by
 
 - **Adopted:** in the forecast or the main analysis.
 - **Alternative:** frozen as a separate 2026 forecast, not used in the main one.
+- **Passed:** passed its test, but answers a question the forecast doesn't ask.
 - **Candidate:** passed narrowly. Written down before 2026 results so the election can test it, but not a finding.
 - **Lead:** a pattern seen only after looking at these same years. 2026 predictions are written down.
 - **Rejected:** failed its test, or doesn't explain what it was meant to.
@@ -50,6 +51,34 @@ Tested over the 12 elections with a final RealClearPolitics average, 2002-2024. 
 | The president's party, or a midterm penalty, with no economic data | — | Worse than the polls' lean alone | Rejected | [REPORT](REPORT.md) §8 |
 | All of the above against the Sept 1 polls | RealClearPolitics daily series | Same answer | Rejected | [REPORT](REPORT.md) §8 |
 | A House ballot built from economics alone | FRED | 5.3 points off leaving one election out, against 3.4 for the Sept 1 polls | Rejected | [REPORT](REPORT.md) §8 |
+
+## The national vote as a pendulum
+
+Tested over the 40 House elections from 1946 to 2024. The rules were written in `pendulum_test.py` before any model was scored, but weren't committed separately. Each model has the president's party and a midterm penalty as forces.
+
+| Idea | Data | Result | Status | Write-up |
+|---|---|---|---|---|
+| A pull back to the center (a spring rather than Brownian motion) | MIT 1976-2024, Wikipedia infoboxes 1946-1974 | `p1` = 0.62: 38% of a swing is gone by the next election. Beats a random walk both ways (4.46 vs 4.78 points leaving one out, 5.11 vs 5.47 forward), and 1.2% of simulated random walks give a `p1` that low. Holds with the center moved in 1994 | Passed | [PENDULUM](PENDULUM.md) |
+| Momentum: a pendulum that overshoots the center | Same | `p2` = +0.07, the wrong sign. No oscillation, worse than the spring both ways, and 74% of simulated springs give a `p2` as negative. The only cycle, 8 years, is the presidency | Rejected | [PENDULUM](PENDULUM.md) |
+| The spring blended with the Sept 1 polls | Same, plus RealClearPolitics 2002-2024 | Prompted by the spring beating the Sept 1 polls forward over 2012-2024 (2.37 vs 3.04). The blend gives the spring a weight of 0.10 and is worse leaving one out (3.72 vs 3.40). It ties forward (3.04), and 77% of shuffles do as well. Same answer with the final polls and with the center moved | Rejected | [PENDULUM](PENDULUM.md) |
+| Size of the random kicks over time | Same | Residual spread of 3.5 points over 1950-1992, 5.8 in 1994-2010, 2.1 since 2012. Eras picked after seeing the series | Reading | [PENDULUM](PENDULUM.md) |
+
+## Talking points in partisan media
+
+One GDELT day every fourth Tuesday, January 2016 to Election Day 2026, for 18 left-leaning and 25 right-leaning news sites picked by partisan audience score and AllSides rating. It measures headline wording and topics, not claims. The rules were written in `talking_points.py` before any results, but weren't committed separately. Four corrections were added after the first run: equal outlet weights, column titles dropped, repeated headlines dropped, and political articles only.
+
+The TV rows (added November 10) use cable news closed captions for the same Tuesdays, through October 27, 2026. Their rules were written in `talking_points_tv.py` while the captions were still downloading. Two post-hoc checks didn't change the direction: dropping pairs that name Trump or Biden, and a rough split of clips replayed across programs.
+
+| Idea | Data | Result | Status | Write-up |
+|---|---|---|---|---|
+| Right-leaning outlets repeat their talking points more than left-leaning ones | GDELT GKG, 207,000 articles, [`data/partisan_outlets.csv`](data/partisan_outlets.csv) | The other way. Left sites reuse their usual headline word pairs twice as often (1.5% of pairs vs 0.7%), 3.4 times as often in 2024-2026, mostly about Trump. About even on GDELT topics. The corrections shrank the gap but didn't flip it | Rejected | [TALKING_POINTS](TALKING_POINTS.md) |
+| Right-leaning outlets got more repetitive after 2024 | Same | Their headline repeat share fell from 0.80% in 2016-2019 to 0.65% in 2024-2026, and their topic repetition was flat | Rejected | [TALKING_POINTS](TALKING_POINTS.md) |
+| The repetition gap comes before generic-ballot moves | Same, plus 4,363 polls from FiveThirtyEight's archive and Wikipedia | A one-standard-deviation gap moves the next 3 months' ballot by 0.07 points (se 0.16), against a typical move of 2.1. Nothing in reverse either | Rejected | [TALKING_POINTS](TALKING_POINTS.md) |
+| Out-party outlets repeat more | Same | Fits the left's 2025-2026 jump. With a Democratic president the left's relative turnover is 0.4 points higher (se 0.4) | Can't tell | [TALKING_POINTS](TALKING_POINTS.md) |
+| Fox News repeats its talking points more than MSNBC | Closed captions from the Internet Archive's TV News Archive, Fox, MSNBC and CNN, the same Tuesdays, 566,000 program minutes | The other way. MSNBC reuses its usual word pairs 1.16 times as often (2.85% vs 2.46%); Fox was ahead in 32 of 121 months. Holds with Trump and Biden pairs dropped, with triples, at K = 500 and without each channel's biggest program | Rejected | [TALKING_POINTS](TALKING_POINTS.md#cable-news) |
+| Fox News got more repetitive from 2024 to the midterm | Same | Its repeat share went 2.76%, 2.30%, 2.34% over 2016-2019, 2020-2023, 2024-2026; 2026 is its lowest year (1.83%). Change from 2024 on: −0.16 points (se 0.20) | Rejected | [TALKING_POINTS](TALKING_POINTS.md#cable-news) |
+| The TV repetition gap comes before generic-ballot moves | Same, plus the polls | A one-standard-deviation gap moves the next 3 months' ballot by −0.20 points (se 0.22). Nothing in reverse | Rejected | [TALKING_POINTS](TALKING_POINTS.md#cable-news) |
+| The out-party's channel repeats more | Same | The Fox-minus-MSNBC gap is 0.42 points higher under a Democratic president (se 0.12): MSNBC well ahead under Trump, about even under Biden. Same direction on the websites. Only four presidential terms, so lineup changes can't be ruled out | Lead | [TALKING_POINTS](TALKING_POINTS.md#cable-news) |
 
 ## Where committee money goes
 
